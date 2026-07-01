@@ -1,0 +1,37 @@
+{
+  "brand": {
+    "name": "AI Translator",
+    "system_name": "AI Translation System",
+    "logo_type": "icon",
+    "logo_icon": "fa-globe",
+    "logo_image_url": ""
+  },
+  "contact": {
+    "support_email": "support@aitranslator.vn",
+    "company_name": "[Tên công ty hoặc cá nhân đăng ký]",
+    "company_address": "[Địa chỉ liên hệ]",
+    "website_url": "[https://yourdomain.com]"
+  },
+  "plans": {
+    "free": {
+      "label": "Free",
+      "token_cap": 5000,
+      "price_vnd": 0
+    },
+    "pro": {
+      "label": "Pro",
+      "token_cap": 120000,
+      "price_vnd": 49000
+    },
+    "promax": {
+      "label": "ProMax",
+      "token_cap": 300000,
+      "price_vnd": 90000
+    }
+  },
+  "prompts": {
+    "ai_terms": "Đóng vai chuyên gia pháp lý về công nghệ và AI. Viết trang 'Điều khoản sử dụng tính năng AI' cho ứng dụng AI Translator (dịch văn bản, tài liệu, OCR). Bao gồm: bản chất AI, trách nhiệm người dùng, quyền sở hữu trí tuệ, sử dụng dữ liệu (KHÔNG huấn luyện lại mô hình), miễn trừ trách nhiệm. Giọng văn chuyên nghiệp, minh bạch.",
+    "privacy_payment": "Đóng vai chuyên gia pháp lý thương mại điện tử. Viết Chính sách bảo mật và Chính sách thanh toán cho AI Translator. Privacy: loại dữ liệu, mục đích, không bán dữ liệu, quyền người dùng, cookies. Payment: SePay/chuyển khoản, bảo mật giao dịch, hoàn tiền 7 ngày nếu chưa dùng token, khiếu nại."
+  },
+  "updated_at": "2026-06-27T01:14:21Z"
+}

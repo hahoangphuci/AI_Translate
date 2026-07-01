@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Cập nhật thông tin - AI Translation</title>
+    <title>Cài đặt - AI Translation</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -12,12 +12,591 @@
     />
     <link rel="stylesheet" href="/css/theme-dark.css" />
     <link rel="stylesheet" href="/css/home.css" />
-    <link rel="stylesheet" href="/css/profile.css" />
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
-    />
+    <link rel="stylesheet" href="/libs/fontawesome/css/all.min.css" />
+    <script src="/js/i18n_data.js"></script>
+    <script src="/js/i18n.js" defer></script>
     <script src="/js/auth_state.js" defer></script>
+    <style>
+      /* ── Settings page ── */
+      .settings-page {
+        padding: 90px 0 60px;
+      }
+
+      /* Banner */
+      .settings-banner {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        padding: 24px 28px;
+        border-radius: 20px;
+        background: linear-gradient(
+          120deg,
+          rgba(0, 168, 255, 0.07) 0%,
+          rgba(255, 255, 255, 0.02) 60%,
+          rgba(0, 255, 209, 0.04) 100%
+        );
+        border: 1px solid rgba(255, 255, 255, 0.07);
+        margin-bottom: 28px;
+        position: relative;
+        overflow: hidden;
+      }
+      .settings-banner::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 4px;
+        height: 100%;
+        background: linear-gradient(180deg, #00a8ff, #00ffd1);
+        border-radius: 4px 0 0 4px;
+      }
+      .settings-banner-icon {
+        width: 52px;
+        height: 52px;
+        border-radius: 14px;
+        background: rgba(0, 168, 255, 0.1);
+        color: #00a8ff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.4rem;
+        flex-shrink: 0;
+      }
+      .settings-banner-title {
+        font-size: 1.35rem;
+        font-weight: 700;
+        color: #fff;
+        margin: 0 0 3px;
+      }
+      .settings-banner-sub {
+        font-size: 0.85rem;
+        color: rgba(255, 255, 255, 0.4);
+        margin: 0;
+      }
+
+      /* Layout */
+      .settings-layout {
+        display: grid;
+        grid-template-columns: 220px 1fr;
+        gap: 20px;
+        align-items: start;
+      }
+
+      /* Sidebar nav */
+      .settings-nav {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        background: rgba(255, 255, 255, 0.025);
+        border: 1px solid rgba(255, 255, 255, 0.07);
+        border-radius: 14px;
+        padding: 8px;
+        position: sticky;
+        top: 90px;
+      }
+      .settings-nav-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 11px 14px;
+        border-radius: 10px;
+        border: none;
+        background: transparent;
+        color: rgba(255, 255, 255, 0.5);
+        font-size: 0.875rem;
+        font-weight: 600;
+        cursor: pointer;
+        text-align: left;
+        transition: all 0.15s;
+        width: 100%;
+      }
+      .settings-nav-item .fas {
+        width: 16px;
+        text-align: center;
+        font-size: 0.85rem;
+      }
+      .settings-nav-item:hover {
+        background: rgba(255, 255, 255, 0.05);
+        color: rgba(255, 255, 255, 0.8);
+      }
+      .settings-nav-item.active {
+        background: linear-gradient(
+          90deg,
+          rgba(0, 168, 255, 0.15),
+          rgba(0, 255, 209, 0.08)
+        );
+        color: #00ffd1;
+        border: 1px solid rgba(0, 255, 209, 0.15);
+      }
+      .settings-nav-item.active .fas {
+        color: #00a8ff;
+      }
+
+      /* Panels */
+      .settings-panel {
+        display: none;
+        flex-direction: column;
+        gap: 20px;
+      }
+      .settings-panel.active {
+        display: flex;
+      }
+
+      /* Section card */
+      .settings-card {
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.025);
+        border: 1px solid rgba(255, 255, 255, 0.07);
+        overflow: hidden;
+      }
+      .settings-card-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 16px 20px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        background: rgba(255, 255, 255, 0.02);
+      }
+      .settings-card-header-icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.9rem;
+        flex-shrink: 0;
+      }
+      .icon-teal {
+        background: rgba(0, 255, 209, 0.1);
+        color: #00ffd1;
+      }
+      .icon-blue {
+        background: rgba(0, 168, 255, 0.1);
+        color: #00a8ff;
+      }
+      .icon-violet {
+        background: rgba(165, 107, 255, 0.1);
+        color: #a56bff;
+      }
+      .settings-card-header h3 {
+        font-size: 1rem;
+        font-weight: 700;
+        color: #fff;
+        margin: 0 0 2px;
+      }
+      .settings-card-header p {
+        font-size: 0.78rem;
+        color: rgba(255, 255, 255, 0.4);
+        margin: 0;
+      }
+      .settings-card-body {
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+      }
+
+      /* Avatar block */
+      .avatar-block {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        padding: 16px 18px;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+      }
+      .avatar-ring {
+        width: 72px;
+        height: 72px;
+        border-radius: 50%;
+        background: linear-gradient(
+          135deg,
+          rgba(0, 168, 255, 0.3),
+          rgba(0, 255, 209, 0.2)
+        );
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.7rem;
+        font-weight: 700;
+        color: #fff;
+        flex-shrink: 0;
+        overflow: hidden;
+        position: relative;
+        box-shadow: 0 0 0 3px rgba(0, 255, 209, 0.2);
+      }
+      .avatar-ring img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        border-radius: 50%;
+      }
+      .avatar-meta strong {
+        display: block;
+        font-size: 1rem;
+        color: #fff;
+        font-weight: 700;
+        margin-bottom: 3px;
+      }
+      .avatar-meta span {
+        font-size: 0.8rem;
+        color: rgba(255, 255, 255, 0.4);
+      }
+      .avatar-meta .plan-pill-mini {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        margin-top: 6px;
+        padding: 3px 10px;
+        border-radius: 20px;
+        background: rgba(0, 255, 209, 0.08);
+        border: 1px solid rgba(0, 255, 209, 0.2);
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: #00ffd1;
+      }
+
+      /* Form fields */
+      .form-row-2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+      }
+      .field-group {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .field-label {
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: rgba(255, 255, 255, 0.55);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .field-label .fas {
+        font-size: 0.7rem;
+        color: rgba(255, 255, 255, 0.3);
+      }
+      .field-input {
+        padding: 11px 14px;
+        border-radius: 10px;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        color: #fff;
+        font-size: 0.9rem;
+        outline: none;
+        transition:
+          border-color 0.2s,
+          box-shadow 0.2s;
+        width: 100%;
+        box-sizing: border-box;
+      }
+      select.field-input {
+        background-color: #0e1e28;
+        color-scheme: dark;
+        cursor: pointer;
+      }
+      select.field-input option {
+        background-color: #0e1e28;
+        color: #e6eef3;
+      }
+      .field-input:focus {
+        border-color: rgba(0, 168, 255, 0.5);
+        box-shadow: 0 0 0 3px rgba(0, 168, 255, 0.08);
+      }
+      .field-input[readonly] {
+        background: rgba(255, 255, 255, 0.02);
+        border-color: rgba(255, 255, 255, 0.05);
+        color: rgba(255, 255, 255, 0.4);
+        cursor: default;
+      }
+      .field-hint {
+        font-size: 0.75rem;
+        color: rgba(255, 255, 255, 0.3);
+        margin: 0;
+      }
+      textarea.field-input {
+        resize: vertical;
+        min-height: 90px;
+        font-family: inherit;
+      }
+
+      /* Plan info row */
+      .plan-info-row {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 16px 18px;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        flex-wrap: wrap;
+      }
+      .plan-icon-block {
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.1rem;
+        flex-shrink: 0;
+        background: rgba(0, 255, 209, 0.08);
+        color: #00ffd1;
+      }
+      .plan-icon-block.pro {
+        background: rgba(102, 126, 234, 0.15);
+        color: #a78bfa;
+      }
+      .plan-icon-block.promax {
+        background: rgba(245, 158, 11, 0.15);
+        color: #fbbf24;
+      }
+      .plan-detail {
+        flex: 1;
+        min-width: 0;
+      }
+      .plan-detail strong {
+        display: block;
+        font-size: 0.95rem;
+        font-weight: 700;
+        color: #fff;
+        margin-bottom: 4px;
+      }
+      .plan-detail-sub {
+        font-size: 0.78rem;
+        color: rgba(255, 255, 255, 0.4);
+      }
+      .token-bar-wrap {
+        width: 100%;
+      }
+      .token-bar-top {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 6px;
+        font-size: 0.78rem;
+        color: rgba(255, 255, 255, 0.4);
+      }
+      .token-bar-track {
+        height: 6px;
+        background: rgba(255, 255, 255, 0.07);
+        border-radius: 6px;
+        overflow: hidden;
+      }
+      .token-bar-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #00a8ff, #00ffd1);
+        border-radius: 6px;
+        transition: width 0.4s;
+      }
+      .btn-upgrade-settings {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 9px 18px;
+        border-radius: 10px;
+        border: none;
+        background: linear-gradient(90deg, #00a8ff, #00ffd1);
+        color: #07161a;
+        font-weight: 700;
+        font-size: 0.82rem;
+        cursor: pointer;
+        transition: all 0.2s;
+        box-shadow: 0 4px 14px rgba(0, 168, 255, 0.3);
+        white-space: nowrap;
+        flex-shrink: 0;
+      }
+      .btn-upgrade-settings:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 7px 22px rgba(0, 168, 255, 0.45);
+      }
+
+      /* Toggle rows (preferences) */
+      .pref-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 14px 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      }
+      .pref-row:last-child {
+        border-bottom: none;
+        padding-bottom: 0;
+      }
+      .pref-row:first-child {
+        padding-top: 0;
+      }
+      .pref-label {
+        font-size: 0.875rem;
+        color: rgba(255, 255, 255, 0.75);
+        font-weight: 500;
+      }
+      .pref-sub {
+        font-size: 0.78rem;
+        color: rgba(255, 255, 255, 0.35);
+        margin-top: 3px;
+      }
+      /* iOS-style toggle */
+      .toggle-switch {
+        position: relative;
+        width: 42px;
+        height: 24px;
+        flex-shrink: 0;
+      }
+      .toggle-switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+      }
+      .toggle-track {
+        position: absolute;
+        inset: 0;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.1);
+        cursor: pointer;
+        transition: background 0.2s;
+      }
+      .toggle-track::after {
+        content: "";
+        position: absolute;
+        top: 3px;
+        left: 3px;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.5);
+        transition:
+          transform 0.2s,
+          background 0.2s;
+      }
+      .toggle-switch input:checked + .toggle-track {
+        background: rgba(0, 168, 255, 0.7);
+      }
+      .toggle-switch input:checked + .toggle-track::after {
+        transform: translateX(18px);
+        background: #fff;
+      }
+
+      /* Action bar */
+      .settings-actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding-top: 6px;
+      }
+      .btn-save {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 10px 22px;
+        border-radius: 10px;
+        border: none;
+        background: linear-gradient(90deg, #00a8ff, #00ffd1);
+        color: #07161a;
+        font-weight: 700;
+        font-size: 0.875rem;
+        cursor: pointer;
+        transition: all 0.2s;
+        box-shadow: 0 4px 14px rgba(0, 168, 255, 0.3);
+      }
+      .btn-save:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 7px 22px rgba(0, 168, 255, 0.45);
+      }
+      .btn-cancel {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 10px 18px;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: rgba(255, 255, 255, 0.04);
+        color: rgba(255, 255, 255, 0.55);
+        font-weight: 600;
+        font-size: 0.875rem;
+        cursor: pointer;
+        transition: all 0.15s;
+      }
+      .btn-cancel:hover {
+        background: rgba(255, 255, 255, 0.08);
+        color: #fff;
+      }
+      .save-feedback {
+        display: none;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.82rem;
+        color: #00ffd1;
+        font-weight: 600;
+      }
+      .save-feedback.show {
+        display: flex;
+      }
+
+      /* Danger zone */
+      .danger-card {
+        border: 1px solid rgba(239, 68, 68, 0.2);
+        background: rgba(239, 68, 68, 0.04);
+      }
+      .danger-card .settings-card-header {
+        border-bottom-color: rgba(239, 68, 68, 0.15);
+      }
+      .danger-card .settings-card-header-icon {
+        background: rgba(239, 68, 68, 0.1);
+        color: #f87171;
+      }
+      .danger-card .settings-card-header h3 {
+        color: #f87171;
+      }
+      .btn-danger {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 9px 18px;
+        border-radius: 10px;
+        border: 1px solid rgba(239, 68, 68, 0.3);
+        background: rgba(239, 68, 68, 0.07);
+        color: #f87171;
+        font-weight: 600;
+        font-size: 0.875rem;
+        cursor: pointer;
+        transition: all 0.15s;
+      }
+      .btn-danger:hover {
+        background: rgba(239, 68, 68, 0.15);
+        border-color: rgba(239, 68, 68, 0.5);
+      }
+
+      @media (max-width: 840px) {
+        .settings-layout {
+          grid-template-columns: 1fr;
+        }
+        .settings-nav {
+          flex-direction: row;
+          flex-wrap: wrap;
+          position: static;
+          padding: 6px;
+          gap: 4px;
+        }
+        .settings-nav-item {
+          width: auto;
+        }
+        .form-row-2 {
+          grid-template-columns: 1fr;
+        }
+        .avatar-block {
+          flex-direction: column;
+          text-align: center;
+        }
+      }
+    </style>
   </head>
   <body class="theme-dark">
     <nav class="navbar">
@@ -29,90 +608,1152 @@
         <div class="nav-links">
           <a href="/" class="nav-link">Trang chủ</a>
           <a href="/dashboard" class="nav-link">Dashboard</a>
+          <a href="/history" class="nav-link">Lịch sử</a>
+          <a href="/profile" class="nav-link active">Cài đặt</a>
         </div>
       </div>
     </nav>
 
-    <section class="profile-section">
+    <section class="settings-page">
       <div class="container">
-        <div class="profile-card glassmorphism">
-          <h2>Cập nhật thông tin</h2>
-          <form id="profile-form">
-            <div class="form-row">
-              <div class="form-group">
-                <label for="profile-name">Họ và tên</label>
-                <input
-                  type="text"
-                  id="profile-name"
-                  placeholder="Tên của bạn"
-                  required
-                />
-              </div>
-              <div class="form-group">
-                <label for="profile-email">Email</label>
-                <input
-                  type="email"
-                  id="profile-email"
-                  placeholder="Email"
-                  readonly
-                />
-                <small style="color: rgba(255, 255, 255, 0.65)">
-                  Email được lấy từ Google và không thay đổi ở đây.
-                </small>
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label for="profile-avatar">Avatar URL (tùy chọn)</label>
-              <input
-                type="text"
-                id="profile-avatar"
-                placeholder="https://..."
-              />
-              <div
-                class="avatar-preview"
-                style="
-                  margin-top: 10px;
-                  display: flex;
-                  align-items: center;
-                  gap: 10px;
-                "
-              >
-                <div
-                  id="avatarCircle"
-                  class="nav-user-avatar"
-                  style="width: 48px; height: 48px; font-size: 18px"
-                >
-                  U
-                </div>
-                <small style="color: rgba(255, 255, 255, 0.65)">
-                  Dán link ảnh (png/jpg/webp). Nếu lỗi sẽ tự fallback chữ cái.
-                </small>
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label for="profile-bio">Tiểu sử ngắn</label>
-              <textarea
-                id="profile-bio"
-                placeholder="Viết vài dòng về bạn"
-                rows="4"
-              ></textarea>
-            </div>
-
-            <div class="form-actions">
-              <button type="submit" class="btn-primary">Lưu thay đổi</button>
-              <button type="button" id="profile-cancel" class="btn-secondary">
-                Hủy
-              </button>
-            </div>
-
-            <div id="profile-message" style="margin-top: 12px"></div>
-          </form>
+        <!-- Banner -->
+        <div class="settings-banner">
+          <div class="settings-banner-icon"><i class="fas fa-cog"></i></div>
+          <div>
+            <h1 class="settings-banner-title">Cài đặt tài khoản</h1>
+            <p class="settings-banner-sub">
+              Quản lý thông tin cá nhân, gói dịch vụ và tùy chỉnh
+            </p>
+          </div>
         </div>
+
+        <div class="settings-layout">
+          <!-- Sidebar nav -->
+          <nav class="settings-nav" role="navigation">
+            <button
+              class="settings-nav-item active"
+              onclick="showSettingsPanel('profile', this)"
+            >
+              <i class="fas fa-user"></i> Hồ sơ
+            </button>
+            <button
+              class="settings-nav-item"
+              onclick="showSettingsPanel('plan', this)"
+            >
+              <i class="fas fa-star"></i> Gói dịch vụ
+            </button>
+            <button
+              class="settings-nav-item"
+              onclick="showSettingsPanel('prefs', this)"
+            >
+              <i class="fas fa-sliders-h"></i> Tùy chỉnh
+            </button>
+            <button
+              class="settings-nav-item"
+              onclick="showSettingsPanel('danger', this)"
+            >
+              <i class="fas fa-shield-alt"></i> Bảo mật
+            </button>
+          </nav>
+
+          <!-- Main content -->
+          <div class="settings-panels">
+            <!-- ── Panel: Hồ sơ ── -->
+            <div id="panel-profile" class="settings-panel active">
+              <!-- Avatar block -->
+              <div class="settings-card">
+                <div class="settings-card-header">
+                  <div class="settings-card-header-icon icon-teal">
+                    <i class="fas fa-user-circle"></i>
+                  </div>
+                  <div>
+                    <h3>Thông tin cá nhân</h3>
+                    <p>Tên hiển thị, email và ảnh đại diện</p>
+                  </div>
+                </div>
+                <div class="settings-card-body">
+                  <!-- Avatar preview -->
+                  <div class="avatar-block">
+                    <div class="avatar-ring" id="avatarCircle">U</div>
+                    <div class="avatar-meta">
+                      <strong id="avatarName">—</strong>
+                      <span id="avatarEmail">—</span>
+                      <div class="plan-pill-mini" id="avatarPlanBadge">
+                        <i class="fas fa-leaf"></i>
+                        <span id="avatarPlanText">Free</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Name + Email -->
+                  <div class="form-row-2">
+                    <div class="field-group">
+                      <label class="field-label" for="profile-name">
+                        <i class="fas fa-id-card"></i> Họ và tên
+                      </label>
+                      <input
+                        type="text"
+                        id="profile-name"
+                        class="field-input"
+                        placeholder="Tên của bạn"
+                        required
+                      />
+                    </div>
+                    <div class="field-group">
+                      <label class="field-label" for="profile-email">
+                        <i class="fas fa-envelope"></i> Email
+                      </label>
+                      <input
+                        type="email"
+                        id="profile-email"
+                        class="field-input"
+                        placeholder="Email"
+                        readonly
+                      />
+                      <p class="field-hint">
+                        Email lấy từ Google, không thể thay đổi.
+                      </p>
+                    </div>
+                  </div>
+
+                  <!-- Avatar URL -->
+                  <div class="field-group">
+                    <label class="field-label" for="profile-avatar">
+                      <i class="fas fa-image"></i> Ảnh đại diện (URL)
+                    </label>
+                    <input
+                      type="text"
+                      id="profile-avatar"
+                      class="field-input"
+                      placeholder="https://..."
+                    />
+                    <p class="field-hint">
+                      Dán link ảnh PNG/JPG/WebP. Nếu lỗi sẽ tự hiển thị chữ cái
+                      đầu tên.
+                    </p>
+                  </div>
+
+                  <!-- Bio -->
+                  <div class="field-group">
+                    <label class="field-label" for="profile-bio">
+                      <i class="fas fa-align-left"></i> Tiểu sử ngắn
+                    </label>
+                    <textarea
+                      id="profile-bio"
+                      class="field-input"
+                      placeholder="Viết vài dòng về bạn..."
+                      rows="3"
+                    ></textarea>
+                  </div>
+
+                  <!-- Actions -->
+                  <div class="settings-actions">
+                    <button
+                      type="button"
+                      class="btn-save"
+                      id="btn-save-profile"
+                      onclick="saveProfile()"
+                    >
+                      <i class="fas fa-save"></i> Lưu thay đổi
+                    </button>
+                    <button
+                      type="button"
+                      class="btn-cancel"
+                      id="profile-cancel"
+                      onclick="window.location.href = '/'"
+                    >
+                      <i class="fas fa-times"></i> Hủy
+                    </button>
+                    <span class="save-feedback" id="profile-message">
+                      <i class="fas fa-check-circle"></i> Đã lưu!
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- ── Panel: Gói dịch vụ ── -->
+            <div id="panel-plan" class="settings-panel">
+              <div class="settings-card">
+                <div class="settings-card-header">
+                  <div class="settings-card-header-icon icon-blue">
+                    <i class="fas fa-rocket"></i>
+                  </div>
+                  <div>
+                    <h3>Gói dịch vụ hiện tại</h3>
+                    <p>Thông tin token và quyền lợi của bạn</p>
+                  </div>
+                </div>
+                <div class="settings-card-body">
+                  <div class="plan-info-row">
+                    <div class="plan-icon-block" id="planSettingsIcon">
+                      <i class="fas fa-leaf"></i>
+                    </div>
+                    <div class="plan-detail">
+                      <strong id="planSettingsName">Free</strong>
+                      <div class="plan-detail-sub" id="planSettingsSub">
+                        Gói miễn phí
+                      </div>
+                    </div>
+                    <button
+                      class="btn-upgrade-settings"
+                      onclick="window.location.href = '/dashboard'"
+                    >
+                      <i class="fas fa-rocket"></i> Nâng cấp gói
+                    </button>
+                  </div>
+
+                  <!-- Token bar -->
+                  <div class="token-bar-wrap">
+                    <div class="token-bar-top">
+                      <span>Token còn lại</span>
+                      <span id="planSettingsTokenText">0 / 5.000</span>
+                    </div>
+                    <div class="token-bar-track">
+                      <div
+                        class="token-bar-fill"
+                        id="planSettingsFill"
+                        style="width: 0%"
+                      ></div>
+                    </div>
+                  </div>
+
+                  <!-- Feature list -->
+                  <div
+                    style="
+                      display: flex;
+                      flex-direction: column;
+                      gap: 10px;
+                      margin-top: 6px;
+                    "
+                  >
+                    <div class="pref-row" style="border: none; padding: 0">
+                      <div>
+                        <div class="pref-label">Dịch văn bản</div>
+                        <div class="pref-sub">Dịch văn bản thuần với AI</div>
+                      </div>
+                      <span
+                        style="
+                          color: #00ffd1;
+                          font-size: 0.85rem;
+                          font-weight: 700;
+                        "
+                        ><i class="fas fa-check"></i> Có</span
+                      >
+                    </div>
+                    <div class="pref-row" style="border: none; padding: 0">
+                      <div>
+                        <div class="pref-label">Upload tài liệu PDF/DOCX</div>
+                        <div class="pref-sub">Dịch toàn bộ file tài liệu</div>
+                      </div>
+                      <span
+                        style="
+                          color: #00ffd1;
+                          font-size: 0.85rem;
+                          font-weight: 700;
+                        "
+                        ><i class="fas fa-check"></i> Có</span
+                      >
+                    </div>
+                    <div
+                      class="pref-row"
+                      style="border: none; padding: 0"
+                      id="featurePriority"
+                    >
+                      <div>
+                        <div class="pref-label">Ưu tiên xử lý</div>
+                        <div class="pref-sub">
+                          Hàng đợi riêng, phản hồi nhanh hơn
+                        </div>
+                      </div>
+                      <span
+                        style="
+                          color: rgba(255, 255, 255, 0.3);
+                          font-size: 0.85rem;
+                        "
+                        id="featurePriorityText"
+                        ><i class="fas fa-times"></i> Chưa có</span
+                      >
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- ── Panel: Tùy chỉnh ── -->
+            <div id="panel-prefs" class="settings-panel">
+              <div class="settings-card">
+                <div class="settings-card-header">
+                  <div class="settings-card-header-icon icon-violet">
+                    <i class="fas fa-sliders-h"></i>
+                  </div>
+                  <div>
+                    <h3 data-i18n="profile.prefsTitle">
+                      Translation preferences
+                    </h3>
+                    <p data-i18n="profile.prefsSub">
+                      Default behavior and editor options
+                    </p>
+                  </div>
+                </div>
+                <div class="settings-card-body">
+                  <div class="pref-row">
+                    <div>
+                      <div class="pref-label">Tự động lưu bản dịch</div>
+                      <div class="pref-sub">
+                        Lưu vào lịch sử sau mỗi lần dịch thành công
+                      </div>
+                    </div>
+                    <label class="toggle-switch">
+                      <input type="checkbox" id="autoSave" checked />
+                      <span class="toggle-track"></span>
+                    </label>
+                  </div>
+                  <div class="pref-row">
+                    <div>
+                      <div class="pref-label">Hiển thị đếm ký tự</div>
+                      <div class="pref-sub">
+                        Hiện số ký tự đã nhập trong khung soạn thảo
+                      </div>
+                    </div>
+                    <label class="toggle-switch">
+                      <input type="checkbox" id="showCharCount" checked />
+                      <span class="toggle-track"></span>
+                    </label>
+                  </div>
+                  <div class="pref-row">
+                    <div>
+                      <div class="pref-label">Rich editor mặc định</div>
+                      <div class="pref-sub">
+                        Bật định dạng văn bản ngay khi mở trang
+                      </div>
+                    </div>
+                    <label class="toggle-switch">
+                      <input type="checkbox" id="defaultRich" />
+                      <span class="toggle-track"></span>
+                    </label>
+                  </div>
+                  <div class="settings-actions">
+                    <button class="btn-save" onclick="savePrefs()">
+                      <i class="fas fa-save"></i> Lưu cài đặt
+                    </button>
+                    <span class="save-feedback" id="prefs-message">
+                      <i class="fas fa-check-circle"></i> Đã lưu!
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- ── Panel: Bảo mật ── -->
+            <div id="panel-danger" class="settings-panel">
+              <div class="settings-card">
+                <div class="settings-card-header">
+                  <div class="settings-card-header-icon icon-blue">
+                    <i class="fas fa-sign-out-alt"></i>
+                  </div>
+                  <div>
+                    <h3>Phiên đăng nhập</h3>
+                    <p>Quản lý phiên đăng nhập hiện tại</p>
+                  </div>
+                </div>
+                <div class="settings-card-body">
+                  <div class="pref-row">
+                    <div>
+                      <div class="pref-label">Đăng xuất khỏi thiết bị này</div>
+                      <div class="pref-sub">
+                        Xóa phiên đăng nhập và token lưu trong trình duyệt
+                      </div>
+                    </div>
+                    <button class="btn-cancel" onclick="doLogout()">
+                      <i class="fas fa-sign-out-alt"></i> Đăng xuất
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="settings-card danger-card">
+                <div class="settings-card-header">
+                  <div class="settings-card-header-icon">
+                    <i class="fas fa-exclamation-triangle"></i>
+                  </div>
+                  <div>
+                    <h3>Vùng nguy hiểm</h3>
+                    <p>Hành động không thể hoàn tác</p>
+                  </div>
+                </div>
+                <div class="settings-card-body">
+                  <div class="pref-row" id="danger-clear-history">
+                    <div>
+                      <div class="pref-label">Xóa toàn bộ lịch sử dịch</div>
+                      <div class="pref-sub">
+                        Tất cả bản dịch đã lưu sẽ bị xóa vĩnh viễn
+                      </div>
+                    </div>
+                    <button
+                      class="btn-danger"
+                      id="btn-clear-history"
+                      type="button"
+                      onclick="openClearHistoryModal()"
+                    >
+                      <i class="fas fa-trash"></i> Xóa lịch sử
+                    </button>
+                  </div>
+                  <div
+                    class="pref-row"
+                    id="danger-delete-account"
+                    style="
+                      margin-top: 16px;
+                      padding-top: 16px;
+                      border-top: 1px solid rgba(255, 255, 255, 0.06);
+                    "
+                  >
+                    <div>
+                      <div class="pref-label">Yêu cầu xóa tài khoản</div>
+                      <div class="pref-sub">
+                        Tài khoản chuyển sang trạng thái chờ xóa 30 ngày — có
+                        thể khôi phục khi đăng nhập lại
+                      </div>
+                    </div>
+                    <button
+                      class="btn-danger"
+                      type="button"
+                      id="btn-delete-account"
+                      onclick="openDeleteAccountModal()"
+                    >
+                      <i class="fas fa-user-slash"></i> Yêu cầu xóa tài khoản
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- /settings-panels -->
+        </div>
+        <!-- /settings-layout -->
       </div>
+      <!-- /container -->
     </section>
 
+    <!-- Modal: xác nhận xóa lịch sử -->
+    <div
+      id="clearHistoryModal"
+      class="profile-modal-backdrop"
+      style="display: none"
+    >
+      <div
+        class="profile-modal"
+        role="dialog"
+        aria-labelledby="clearHistoryTitle"
+      >
+        <h3 id="clearHistoryTitle">
+          <i class="fas fa-exclamation-triangle"></i> Xóa toàn bộ lịch sử dịch
+        </h3>
+        <p
+          style="
+            color: rgba(255, 255, 255, 0.7);
+            line-height: 1.7;
+            margin: 0 0 16px;
+          "
+        >
+          Tất cả bản dịch đã lưu sẽ bị <strong>xóa vĩnh viễn</strong> và không
+          thể khôi phục. Bạn cần xác nhận bằng mã OTP gửi tới email đăng ký.
+        </p>
+        <div
+          style="
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            flex-wrap: wrap;
+          "
+        >
+          <button
+            type="button"
+            class="btn-cancel"
+            onclick="closeClearHistoryModal()"
+          >
+            Huỷ
+          </button>
+          <button
+            type="button"
+            class="btn-danger"
+            onclick="sendClearHistoryOtp()"
+          >
+            Tiếp tục — gửi OTP
+          </button>
+        </div>
+        <p
+          id="clearHistoryModalMsg"
+          style="margin-top: 12px; font-size: 0.85rem; min-height: 1.2em"
+        ></p>
+      </div>
+    </div>
+
+    <!-- Modal: nhập OTP xóa lịch sử -->
+    <div
+      id="clearHistoryOtpModal"
+      class="profile-modal-backdrop"
+      style="display: none"
+    >
+      <div class="profile-modal" role="dialog">
+        <h3><i class="fas fa-envelope"></i> Xác nhận bằng OTP</h3>
+        <p style="color: rgba(255, 255, 255, 0.65); line-height: 1.6">
+          Mã OTP 6 số đã gửi tới email của bạn (hiệu lực 5 phút).
+        </p>
+        <input
+          type="text"
+          id="clearHistoryOtpInput"
+          maxlength="6"
+          inputmode="numeric"
+          autocomplete="one-time-code"
+          placeholder="000000"
+          style="
+            width: 100%;
+            max-width: 220px;
+            letter-spacing: 8px;
+            text-align: center;
+            font-size: 1.35rem;
+            padding: 12px;
+            margin: 12px 0;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            background: rgba(0, 0, 0, 0.3);
+            color: #fff;
+          "
+        />
+        <div
+          style="
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 8px;
+          "
+        >
+          <button
+            type="button"
+            class="btn-cancel"
+            onclick="closeClearHistoryOtpModal()"
+          >
+            Huỷ
+          </button>
+          <button
+            type="button"
+            class="btn-danger"
+            onclick="confirmClearHistoryOtp()"
+          >
+            Xác nhận xóa
+          </button>
+        </div>
+        <p
+          id="clearHistoryOtpModalMsg"
+          style="margin-top: 12px; font-size: 0.85rem; min-height: 1.2em"
+        ></p>
+      </div>
+    </div>
+
+    <!-- Modal: xác nhận yêu cầu xóa tài khoản -->
+    <div
+      id="deleteAccountModal"
+      class="profile-modal-backdrop"
+      style="display: none"
+    >
+      <div
+        class="profile-modal"
+        role="dialog"
+        aria-labelledby="deleteAccountTitle"
+      >
+        <h3 id="deleteAccountTitle">
+          <i class="fas fa-exclamation-triangle"></i> Yêu cầu xóa tài khoản
+        </h3>
+        <p
+          style="
+            color: rgba(255, 255, 255, 0.7);
+            line-height: 1.7;
+            margin: 0 0 16px;
+          "
+        >
+          Tài khoản của bạn sẽ được chuyển sang trạng thái chờ xóa trong
+          <strong>30 ngày</strong>. Trong thời gian này, bạn có thể đăng nhập
+          lại để khôi phục tài khoản. Sau 30 ngày, tài khoản sẽ bị xóa hoặc vô
+          hiệu hóa vĩnh viễn.
+        </p>
+        <label class="pref-label" for="deleteReason">Lý do (tuỳ chọn)</label>
+        <textarea
+          id="deleteReason"
+          rows="3"
+          style="
+            width: 100%;
+            margin: 8px 0 16px;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: rgba(0, 0, 0, 0.25);
+            color: #fff;
+            resize: vertical;
+          "
+        ></textarea>
+        <div
+          style="
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            flex-wrap: wrap;
+          "
+        >
+          <button
+            type="button"
+            class="btn-cancel"
+            onclick="closeDeleteAccountModal()"
+          >
+            Huỷ
+          </button>
+          <button
+            type="button"
+            class="btn-danger"
+            onclick="sendDeleteAccountOtp()"
+          >
+            Tiếp tục — gửi OTP
+          </button>
+        </div>
+        <p
+          id="deleteAccountModalMsg"
+          style="margin-top: 12px; font-size: 0.85rem; min-height: 1.2em"
+        ></p>
+      </div>
+    </div>
+
+    <!-- Modal: nhập OTP xóa tài khoản -->
+    <div
+      id="deleteOtpModal"
+      class="profile-modal-backdrop"
+      style="display: none"
+    >
+      <div class="profile-modal" role="dialog">
+        <h3><i class="fas fa-envelope"></i> Xác nhận bằng OTP</h3>
+        <p style="color: rgba(255, 255, 255, 0.65); line-height: 1.6">
+          Mã OTP 6 số đã gửi tới email của bạn (hiệu lực 5 phút).
+        </p>
+        <input
+          type="text"
+          id="deleteOtpInput"
+          maxlength="6"
+          inputmode="numeric"
+          autocomplete="one-time-code"
+          placeholder="000000"
+          style="
+            width: 100%;
+            max-width: 220px;
+            letter-spacing: 8px;
+            text-align: center;
+            font-size: 1.35rem;
+            padding: 12px;
+            margin: 12px 0;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            background: rgba(0, 0, 0, 0.3);
+            color: #fff;
+          "
+        />
+        <div
+          style="
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 8px;
+          "
+        >
+          <button
+            type="button"
+            class="btn-cancel"
+            onclick="closeDeleteOtpModal()"
+          >
+            Huỷ
+          </button>
+          <button
+            type="button"
+            class="btn-danger"
+            onclick="confirmDeleteAccountOtp()"
+          >
+            Xác nhận xóa
+          </button>
+        </div>
+        <p
+          id="deleteOtpModalMsg"
+          style="margin-top: 12px; font-size: 0.85rem; min-height: 1.2em"
+        ></p>
+      </div>
+    </div>
+
+    <style>
+      .profile-modal-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.65);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        padding: 20px;
+      }
+      .profile-modal {
+        background: #0e1a2b;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 16px;
+        padding: 24px;
+        max-width: 480px;
+        width: 100%;
+      }
+      .profile-modal h3 {
+        margin: 0 0 12px;
+        color: #ffb4b4;
+        font-size: 1.1rem;
+      }
+    </style>
+
+    <script src="/js/toast.js"></script>
     <script src="/js/profile.js" defer></script>
+    <script>
+      // Panel navigation
+      function showSettingsPanel(id, btn) {
+        document
+          .querySelectorAll(".settings-panel")
+          .forEach((p) => p.classList.remove("active"));
+        document
+          .querySelectorAll(".settings-nav-item")
+          .forEach((b) => b.classList.remove("active"));
+        const panel = document.getElementById("panel-" + id);
+        if (panel) panel.classList.add("active");
+        if (btn) btn.classList.add("active");
+      }
+
+      // Save preferences (localStorage)
+      function savePrefs() {
+        const prefs = {
+          autoSave: document.getElementById("autoSave").checked,
+          showCharCount: document.getElementById("showCharCount").checked,
+          defaultRich: document.getElementById("defaultRich").checked,
+        };
+        localStorage.setItem("user_prefs", JSON.stringify(prefs));
+        // Also sync to dashboard_settings so dashboard.js picks it up
+        try {
+          const ds = JSON.parse(
+            localStorage.getItem("dashboard_settings") || "{}",
+          );
+          ds.autoSave = prefs.autoSave;
+          localStorage.setItem("dashboard_settings", JSON.stringify(ds));
+        } catch (e) {}
+        const msg = document.getElementById("prefs-message");
+        if (msg) {
+          msg.classList.add("show");
+          setTimeout(() => msg.classList.remove("show"), 2500);
+        }
+      }
+
+      function loadPrefs() {
+        try {
+          // Read from user_prefs first, fall back to dashboard_settings
+          const prefs = JSON.parse(localStorage.getItem("user_prefs") || "{}");
+          const ds = JSON.parse(
+            localStorage.getItem("dashboard_settings") || "{}",
+          );
+          const autoSave =
+            prefs.autoSave !== undefined ? prefs.autoSave : ds.autoSave;
+          if (autoSave !== undefined)
+            document.getElementById("autoSave").checked = autoSave;
+          if (prefs.showCharCount !== undefined)
+            document.getElementById("showCharCount").checked =
+              prefs.showCharCount;
+          if (prefs.defaultRich !== undefined)
+            document.getElementById("defaultRich").checked = prefs.defaultRich;
+        } catch (e) {}
+      }
+
+      function calcTokenUsageProfile(balance, cap) {
+        const bal = Math.max(0, parseInt(balance, 10) || 0);
+        const planCap = Math.max(1, parseInt(cap, 10) || 5000);
+        const used = Math.max(0, planCap - Math.min(bal, planCap));
+        const usedPct = Math.min(100, Math.round((used / planCap) * 100));
+        const remainingPct = Math.min(
+          100,
+          Math.round((Math.min(bal, planCap) / planCap) * 100),
+        );
+        return { balance: bal, cap: planCap, used, usedPct, remainingPct };
+      }
+
+      // Populate plan panel from profile data
+      function populatePlanPanel(data) {
+        if (!data) return;
+        const PLAN_CAPS = { free: 5000, pro: 120000, promax: 300000 };
+        const plan = String(data.plan || "free").toLowerCase();
+        const cap = PLAN_CAPS[plan] || 5000;
+        const balance = parseInt(data.token_balance || 0, 10);
+        const usage = calcTokenUsageProfile(balance, cap);
+
+        const icon = document.getElementById("planSettingsIcon");
+        const nameEl = document.getElementById("planSettingsName");
+        const subEl = document.getElementById("planSettingsSub");
+        const tokenText = document.getElementById("planSettingsTokenText");
+        const fillEl = document.getElementById("planSettingsFill");
+        const priorityText = document.getElementById("featurePriorityText");
+
+        if (icon) {
+          icon.className =
+            "plan-icon-block" +
+            (plan === "pro" ? " pro" : plan === "promax" ? " promax" : "");
+          icon.innerHTML =
+            plan === "pro"
+              ? '<i class="fas fa-bolt"></i>'
+              : plan === "promax"
+                ? '<i class="fas fa-crown"></i>'
+                : '<i class="fas fa-leaf"></i>';
+        }
+        if (nameEl) nameEl.textContent = data.plan_name || "Free";
+        if (subEl)
+          subEl.textContent =
+            plan === "free"
+              ? "Gói miễn phí"
+              : plan === "pro"
+                ? "Gói Pro — 120.000 token"
+                : "Gói ProMax — 300.000 token";
+        if (tokenText)
+          tokenText.textContent =
+            balance.toLocaleString("vi-VN") +
+            " / " +
+            cap.toLocaleString("vi-VN");
+        if (fillEl) fillEl.style.width = usage.remainingPct + "%";
+        if (priorityText) {
+          const hasPriority = plan === "pro" || plan === "promax";
+          priorityText.innerHTML = hasPriority
+            ? '<i class="fas fa-check"></i> Có'
+            : '<i class="fas fa-times"></i> Chưa có';
+          priorityText.style.color = hasPriority
+            ? "#00ffd1"
+            : "rgba(255,255,255,0.3)";
+        }
+
+        // Update avatar plan badge
+        const planText = document.getElementById("avatarPlanText");
+        const planBadge = document.getElementById("avatarPlanBadge");
+        if (planText) planText.textContent = data.plan_name || "Free";
+        if (planBadge) {
+          planBadge.style.background =
+            plan === "pro"
+              ? "rgba(102,126,234,0.15)"
+              : plan === "promax"
+                ? "rgba(245,158,11,0.15)"
+                : "rgba(0,255,209,0.08)";
+          planBadge.style.borderColor =
+            plan === "pro"
+              ? "rgba(102,126,234,0.3)"
+              : plan === "promax"
+                ? "rgba(245,158,11,0.3)"
+                : "rgba(0,255,209,0.2)";
+          planBadge.style.color =
+            plan === "pro"
+              ? "#a78bfa"
+              : plan === "promax"
+                ? "#fbbf24"
+                : "#00ffd1";
+          const icon2 = planBadge.querySelector("i");
+          if (icon2)
+            icon2.className =
+              plan === "pro"
+                ? "fas fa-bolt"
+                : plan === "promax"
+                  ? "fas fa-crown"
+                  : "fas fa-leaf";
+        }
+      }
+
+      function doLogout() {
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        window.location.href = "/";
+      }
+
+      function openClearHistoryModal() {
+        const m = document.getElementById("clearHistoryModal");
+        const msg = document.getElementById("clearHistoryModalMsg");
+        if (msg) msg.textContent = "";
+        if (m) m.style.display = "flex";
+      }
+
+      function closeClearHistoryModal() {
+        const m = document.getElementById("clearHistoryModal");
+        if (m) m.style.display = "none";
+      }
+
+      function closeClearHistoryOtpModal() {
+        const m = document.getElementById("clearHistoryOtpModal");
+        if (m) m.style.display = "none";
+      }
+
+      async function sendClearHistoryOtp() {
+        const msg = document.getElementById("clearHistoryModalMsg");
+        if (msg) msg.textContent = "Đang gửi OTP...";
+        try {
+          const res = await fetch("/api/history/clear/request", {
+            method: "POST",
+            headers: profileAuthHeaders(),
+            body: JSON.stringify({}),
+          });
+          const data = await parseApiJson(res);
+          if (data._parseError) {
+            if (msg) {
+              msg.textContent =
+                res.status === 404
+                  ? "API chưa cập nhật. Hãy dừng và chạy lại run_api.py, rồi thử lại."
+                  : "Lỗi phản hồi từ server (HTTP " + res.status + ").";
+            }
+            return;
+          }
+          if (!res.ok) {
+            if (msg)
+              msg.textContent =
+                data.message || data.error || "Không gửi được OTP";
+            return;
+          }
+          closeClearHistoryModal();
+          const otpModal = document.getElementById("clearHistoryOtpModal");
+          const otpMsg = document.getElementById("clearHistoryOtpModalMsg");
+          if (otpMsg) otpMsg.textContent = data.message || "";
+          if (otpModal) otpModal.style.display = "flex";
+          const inp = document.getElementById("clearHistoryOtpInput");
+          if (inp) {
+            inp.value = "";
+            inp.focus();
+          }
+        } catch (e) {
+          if (msg) msg.textContent = "Lỗi kết nối.";
+        }
+      }
+
+      async function confirmClearHistoryOtp() {
+        const otpMsg = document.getElementById("clearHistoryOtpModalMsg");
+        const inp = document.getElementById("clearHistoryOtpInput");
+        const otp = inp ? inp.value.trim() : "";
+        if (otp.length !== 6) {
+          if (otpMsg) otpMsg.textContent = "Vui lòng nhập đủ 6 chữ số OTP.";
+          return;
+        }
+        if (otpMsg) otpMsg.textContent = "Đang xác nhận...";
+        try {
+          const res = await fetch("/api/history/clear/confirm", {
+            method: "POST",
+            headers: profileAuthHeaders(),
+            body: JSON.stringify({ otp }),
+          });
+          const data = await parseApiJson(res);
+          if (data._parseError || !res.ok) {
+            if (otpMsg)
+              otpMsg.textContent =
+                data.message || data.error || "OTP không hợp lệ";
+            return;
+          }
+          closeClearHistoryOtpModal();
+          showToast(data.message || "Đã xóa toàn bộ lịch sử.", "success");
+        } catch (e) {
+          if (otpMsg) otpMsg.textContent = "Lỗi kết nối.";
+        }
+      }
+
+      function profileAuthHeaders() {
+        const token = localStorage.getItem("token");
+        return {
+          "Content-Type": "application/json",
+          Authorization: token ? `Bearer ${token}` : "",
+        };
+      }
+
+      function openDeleteAccountModal() {
+        const m = document.getElementById("deleteAccountModal");
+        const msg = document.getElementById("deleteAccountModalMsg");
+        if (msg) msg.textContent = "";
+        if (m) m.style.display = "flex";
+      }
+
+      function closeDeleteAccountModal() {
+        const m = document.getElementById("deleteAccountModal");
+        if (m) m.style.display = "none";
+      }
+
+      function closeDeleteOtpModal() {
+        const m = document.getElementById("deleteOtpModal");
+        if (m) m.style.display = "none";
+      }
+
+      async function parseApiJson(res) {
+        const text = await res.text();
+        if (!text) return {};
+        try {
+          return JSON.parse(text);
+        } catch (e) {
+          return { _parseError: true, _raw: text.slice(0, 120) };
+        }
+      }
+
+      async function sendDeleteAccountOtp() {
+        const msg = document.getElementById("deleteAccountModalMsg");
+        const reasonEl = document.getElementById("deleteReason");
+        const reason = reasonEl ? reasonEl.value.trim() : "";
+        if (msg) msg.textContent = "Đang gửi OTP...";
+        try {
+          const res = await fetch("/api/auth/account/delete/request", {
+            method: "POST",
+            headers: profileAuthHeaders(),
+            body: JSON.stringify({ reason }),
+          });
+          const data = await parseApiJson(res);
+          if (data._parseError) {
+            if (msg) {
+              msg.textContent =
+                res.status === 404
+                  ? "API chưa cập nhật. Hãy dừng và chạy lại run_api.py, rồi thử lại."
+                  : "Lỗi phản hồi từ server (HTTP " + res.status + ").";
+            }
+            return;
+          }
+          if (!res.ok) {
+            if (msg)
+              msg.textContent =
+                data.message || data.error || "Không gửi được OTP";
+            return;
+          }
+          closeDeleteAccountModal();
+          const otpModal = document.getElementById("deleteOtpModal");
+          const otpMsg = document.getElementById("deleteOtpModalMsg");
+          if (otpMsg) otpMsg.textContent = data.message || "";
+          if (otpModal) otpModal.style.display = "flex";
+          const inp = document.getElementById("deleteOtpInput");
+          if (inp) {
+            inp.value = "";
+            inp.focus();
+          }
+        } catch (e) {
+          if (msg) msg.textContent = "Lỗi kết nối.";
+        }
+      }
+
+      async function confirmDeleteAccountOtp() {
+        const otpMsg = document.getElementById("deleteOtpModalMsg");
+        const inp = document.getElementById("deleteOtpInput");
+        const otp = inp ? inp.value.trim() : "";
+        if (otp.length !== 6) {
+          if (otpMsg) otpMsg.textContent = "Vui lòng nhập đủ 6 chữ số OTP.";
+          return;
+        }
+        if (otpMsg) otpMsg.textContent = "Đang xác nhận...";
+        try {
+          const res = await fetch("/api/auth/account/delete/confirm", {
+            method: "POST",
+            headers: profileAuthHeaders(),
+            body: JSON.stringify({ otp }),
+          });
+          const data = await parseApiJson(res);
+          if (data._parseError || !res.ok) {
+            if (otpMsg)
+              otpMsg.textContent =
+                data.message || data.error || "OTP không hợp lệ";
+            return;
+          }
+          closeDeleteOtpModal();
+          if (data.user)
+            localStorage.setItem("user", JSON.stringify(data.user));
+          localStorage.removeItem("token");
+          showToast(
+            data.message ||
+              "Yêu cầu xóa tài khoản đã được ghi nhận. Tài khoản của bạn sẽ được xóa sau 30 ngày. Trong thời gian này, bạn có thể đăng nhập lại để khôi phục tài khoản nếu thay đổi quyết định.",
+            "success",
+            {
+              duration: 3200,
+              onClose: function () {
+                window.location.href = "/auth";
+              },
+            },
+          );
+        } catch (e) {
+          if (otpMsg) otpMsg.textContent = "Lỗi kết nối.";
+        }
+      }
+
+      document.addEventListener("DOMContentLoaded", () => {
+        loadPrefs();
+        // Load remote profile and fill plan panel
+        const token = localStorage.getItem("token");
+        if (token && !String(token).startsWith("fake")) {
+          fetch("/api/auth/profile", {
+            headers: { Authorization: `Bearer ${token}` },
+          })
+            .then((r) => (r.ok ? r.json() : null))
+            .then((data) => {
+              if (data) populatePlanPanel(data);
+            })
+            .catch(() => {});
+        }
+        // Also populate avatar name from localStorage while loading
+        try {
+          const user = JSON.parse(localStorage.getItem("user") || "{}");
+          const avatarName = document.getElementById("avatarName");
+          const avatarEmail = document.getElementById("avatarEmail");
+          if (avatarName && user.name) avatarName.textContent = user.name;
+          if (avatarEmail && user.email) avatarEmail.textContent = user.email;
+        } catch (e) {}
+      });
+
+      // Hook: update avatar panel when profile.js sets nameInput
+      // profile.js calls setAvatarPreview which updates #avatarCircle
+      // We also sync #avatarName live from the input
+      document.addEventListener("input", function (e) {
+        if (e.target && e.target.id === "profile-name") {
+          const avatarName = document.getElementById("avatarName");
+          if (avatarName) avatarName.textContent = e.target.value || "—";
+        }
+      });
+
+      // Override profile.js save feedback to use new element
+      window.saveProfile = async function () {
+        const form = document.getElementById("profile-form-inner");
+        if (form) {
+          form.dispatchEvent(
+            new Event("submit", { bubbles: true, cancelable: true }),
+          );
+          return;
+        }
+        // Fallback: call profile.js logic
+        const nameInput = document.getElementById("profile-name");
+        const emailInput = document.getElementById("profile-email");
+        const avatarInput = document.getElementById("profile-avatar");
+        const bioInput = document.getElementById("profile-bio");
+        const user = {
+          name: (nameInput ? nameInput.value.trim() : "") || "User",
+          email: emailInput ? emailInput.value.trim() : "",
+          avatarUrl: avatarInput ? avatarInput.value.trim() : "",
+          bio: bioInput ? bioInput.value.trim() : "",
+        };
+        localStorage.setItem("user", JSON.stringify(user));
+        const token = localStorage.getItem("token");
+        if (token && !String(token).startsWith("fake")) {
+          await fetch("/api/auth/profile", {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              name: user.name,
+              avatar_url: user.avatarUrl || "",
+            }),
+          }).catch(() => {});
+        }
+        const avatarName = document.getElementById("avatarName");
+        if (avatarName && nameInput)
+          avatarName.textContent = nameInput.value || "—";
+        const msg = document.getElementById("profile-message");
+        if (msg) {
+          msg.classList.add("show");
+          setTimeout(() => msg.classList.remove("show"), 2500);
+        }
+      };
+    </script>
   </body>
 </html>

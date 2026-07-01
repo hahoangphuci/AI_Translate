@@ -1,0 +1,567 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Quản trị - AI Translator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/css/theme-dark.css" />
+    <link rel="stylesheet" href="/css/admin.css" />
+    <link rel="stylesheet" href="/css/legal.css" />
+    <link rel="stylesheet" href="/css/i18n.css" />
+    <link rel="stylesheet" href="/libs/fontawesome/css/all.min.css" />
+    <script src="/js/i18n_data.js"></script>
+    <script>
+      (function () {
+        try {
+          var tab = sessionStorage.getItem("admin_active_tab");
+          if (tab) document.documentElement.setAttribute("data-admin-tab", tab);
+        } catch (e) {
+          /* ignore */
+        }
+      })();
+    </script>
+    <script src="/js/i18n.js" defer></script>
+    <script src="/js/auth_state.js" defer></script>
+  </head>
+  <body class="theme-dark admin-boot-pending">
+    <!-- Sidebar -->
+    <aside class="admin-sidebar" id="sidebar">
+      <div class="sidebar-logo">
+        <i class="fas fa-shield-halved"></i>
+        <span>Admin Panel</span>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="#" class="sidebar-item active" data-tab="dashboard">
+          <i class="fas fa-chart-pie"></i> Tổng quan
+        </a>
+        <a href="#" class="sidebar-item" data-tab="users">
+          <i class="fas fa-users"></i> Người dùng
+        </a>
+        <a href="#" class="sidebar-item" data-tab="translations">
+          <i class="fas fa-language"></i> Bản dịch
+        </a>
+        <a href="#" class="sidebar-item" data-tab="payments">
+          <i class="fas fa-credit-card"></i> Thanh toán
+        </a>
+        <a href="#" class="sidebar-item" data-tab="contacts">
+          <i class="fas fa-envelope"></i> Liên hệ
+        </a>
+        <a href="#" class="sidebar-item" data-tab="newsletter">
+          <i class="fas fa-bell"></i> Newsletter
+        </a>
+        <a href="#" class="sidebar-item" data-tab="audit">
+          <i class="fas fa-scroll"></i> Audit Log
+        </a>
+        <a href="#" class="sidebar-item" data-tab="site-config">
+          <i class="fas fa-sliders"></i>
+          <span data-i18n="admin.navSiteConfig">Cấu hình hệ thống</span>
+        </a>
+        <div class="sidebar-divider"></div>
+        <a href="/dashboard" class="sidebar-item">
+          <i class="fas fa-arrow-left"></i> Về Dashboard
+        </a>
+      </nav>
+    </aside>
+
+    <!-- Main content -->
+    <div class="admin-main">
+      <!-- Top bar -->
+      <header class="admin-topbar">
+        <button class="topbar-toggle" id="sidebarToggle">
+          <i class="fas fa-bars"></i>
+        </button>
+        <div class="topbar-title-wrap">
+          <h1 class="topbar-title" id="topbarTitle">Tổng quan</h1>
+          <p
+            class="topbar-subtitle"
+            id="topbarSubtitle"
+            style="display: none"
+            data-i18n="admin.config.pageSubtitle"
+          >
+            Quản lý thương hiệu, gói cước, trang chính sách và API dịch.
+          </p>
+        </div>
+        <div class="topbar-right">
+          <span class="topbar-admin-badge"
+            ><i class="fas fa-user-shield"></i>
+            <span id="adminName">Admin</span></span
+          >
+        </div>
+      </header>
+
+      <!-- Loading overlay -->
+      <div class="admin-loading" id="adminLoading">
+        <i class="fas fa-spinner fa-spin"></i>
+      </div>
+
+      <!-- Access denied (shown if not admin) -->
+      <div class="admin-denied" id="adminDenied" style="display: none">
+        <i class="fas fa-ban"></i>
+        <h2>Không có quyền truy cập</h2>
+        <p>Bạn cần đăng nhập bằng tài khoản Admin.</p>
+        <a href="/auth" class="btn-accent">Đăng nhập</a>
+      </div>
+
+      <!-- Tab: Dashboard -->
+      <section class="admin-tab active" id="tab-dashboard">
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-icon bg-teal"><i class="fas fa-users"></i></div>
+            <div class="stat-info">
+              <span class="stat-value" id="stat-users">—</span>
+              <span class="stat-label" data-i18n="admin.stat.users"
+                >Người dùng</span
+              >
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon bg-blue"><i class="fas fa-language"></i></div>
+            <div class="stat-info">
+              <span class="stat-value" id="stat-translations">—</span>
+              <span class="stat-label" data-i18n="admin.stat.translations"
+                >Bản dịch</span
+              >
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon bg-purple">
+              <i class="fas fa-credit-card"></i>
+            </div>
+            <div class="stat-info">
+              <span class="stat-value" id="stat-payments">—</span>
+              <span class="stat-label" data-i18n="admin.stat.payments"
+                >Giao dịch</span
+              >
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon bg-gold"><i class="fas fa-coins"></i></div>
+            <div class="stat-info">
+              <span class="stat-value" id="stat-revenue">—</span>
+              <span class="stat-label" data-i18n="admin.stat.revenue"
+                >Doanh thu (VND)</span
+              >
+            </div>
+          </div>
+        </div>
+        <div class="stats-row stats-row-roles">
+          <div class="stat-mini-card">
+            <span class="stat-mini-label" data-i18n="admin.stat.roleAdmin">Admin</span>
+            <span class="stat-mini-val" id="stat-admins">—</span>
+          </div>
+          <div class="stat-mini-card">
+            <span class="stat-mini-label" data-i18n="admin.stat.roleMember">Thành viên</span>
+            <span class="stat-mini-val" id="stat-members">—</span>
+          </div>
+        </div>
+        <p class="stats-row-caption" data-i18n="admin.stat.byPlan">Phân bổ theo gói</p>
+        <div class="stats-row stats-row-plans">
+          <div class="stat-mini-card">
+            <span class="stat-mini-label">Free</span>
+            <span class="stat-mini-val" id="stat-free">—</span>
+          </div>
+          <div class="stat-mini-card">
+            <span class="stat-mini-label">Pro</span>
+            <span class="stat-mini-val" id="stat-pro">—</span>
+          </div>
+          <div class="stat-mini-card">
+            <span class="stat-mini-label">ProMax</span>
+            <span class="stat-mini-val" id="stat-promax">—</span>
+          </div>
+        </div>
+        <div class="charts-grid">
+          <div class="chart-card">
+            <h3 class="chart-title">
+              <i class="fas fa-language"></i>
+              <span data-i18n="admin.chart.translations7d"
+                >Bản dịch 7 ngày</span
+              >
+            </h3>
+            <div class="chart-wrap">
+              <canvas id="chartTranslations"></canvas>
+            </div>
+          </div>
+          <div class="chart-card">
+            <h3 class="chart-title">
+              <i class="fas fa-user-plus"></i>
+              <span data-i18n="admin.chart.users7d">Người dùng mới 7 ngày</span>
+            </h3>
+            <div class="chart-wrap"><canvas id="chartUsers"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <h3 class="chart-title">
+              <i class="fas fa-coins"></i>
+              <span data-i18n="admin.chart.revenue7d"
+                >Doanh thu 7 ngày (VND)</span
+              >
+            </h3>
+            <div class="chart-wrap"><canvas id="chartRevenue"></canvas></div>
+          </div>
+          <div class="chart-card chart-card-sm">
+            <h3 class="chart-title">
+              <i class="fas fa-chart-pie"></i>
+              <span data-i18n="admin.chart.planDist">Phân bố gói</span>
+            </h3>
+            <div class="chart-wrap chart-wrap-pie">
+              <canvas id="chartPlans"></canvas>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Tab: Users -->
+      <section class="admin-tab" id="tab-users">
+        <div class="tab-toolbar">
+          <input
+            type="text"
+            id="userSearch"
+            class="admin-search"
+            placeholder="Tìm theo email hoặc tên…"
+            data-i18n="admin.searchPlaceholder"
+            data-i18n-placeholder
+          />
+          <button class="btn-accent" onclick="loadUsers(1)">
+            <i class="fas fa-search"></i>
+            <span data-i18n="admin.searchBtn">Tìm</span>
+          </button>
+        </div>
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th data-i18n="admin.col.id">ID</th>
+                <th data-i18n="admin.col.name">Tên</th>
+                <th data-i18n="admin.col.email">Email</th>
+                <th data-i18n="admin.col.plan">Plan</th>
+                <th data-i18n="admin.col.role">Role</th>
+                <th data-i18n="admin.col.tokens">Tokens</th>
+                <th data-i18n="admin.col.createdAt">Ngày tạo</th>
+                <th data-i18n="admin.col.actions">Hành động</th>
+              </tr>
+            </thead>
+            <tbody id="usersBody"></tbody>
+          </table>
+        </div>
+        <div class="pagination" id="usersPagination"></div>
+      </section>
+
+      <!-- Tab: Translations -->
+      <section class="admin-tab" id="tab-translations">
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th data-i18n="admin.col.id">ID</th>
+                <th data-i18n="admin.col.userId">User ID</th>
+                <th data-i18n="admin.col.source">Nguồn</th>
+                <th data-i18n="admin.col.target">Đích</th>
+                <th data-i18n="admin.col.originalSummary">Bản gốc (tóm tắt)</th>
+                <th data-i18n="admin.col.time">Thời gian</th>
+                <th data-i18n="admin.col.actions">Hành động</th>
+              </tr>
+            </thead>
+            <tbody id="translationsBody"></tbody>
+          </table>
+        </div>
+        <div class="pagination" id="translationsPagination"></div>
+      </section>
+
+      <!-- Tab: Payments -->
+      <section class="admin-tab" id="tab-payments">
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th data-i18n="admin.col.id">ID</th>
+                <th data-i18n="admin.col.userId">User ID</th>
+                <th data-i18n="admin.col.plan">Plan</th>
+                <th data-i18n="admin.col.amount">Số tiền</th>
+                <th data-i18n="admin.col.status">Trạng thái</th>
+                <th data-i18n="admin.col.sepayCode">Mã GD SePay</th>
+                <th data-i18n="admin.col.time">Thời gian</th>
+                <th data-i18n="admin.col.actions">Hành động</th>
+              </tr>
+            </thead>
+            <tbody id="paymentsBody"></tbody>
+          </table>
+        </div>
+        <div class="pagination" id="paymentsPagination"></div>
+      </section>
+
+      <!-- Tab: Contacts -->
+      <section class="admin-tab" id="tab-contacts">
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th data-i18n="admin.col.id">ID</th>
+                <th data-i18n="admin.col.name">Tên</th>
+                <th data-i18n="admin.col.email">Email</th>
+                <th data-i18n="admin.col.subject">Chủ đề</th>
+                <th data-i18n="admin.col.content">Nội dung</th>
+                <th data-i18n="admin.col.status">Trạng thái</th>
+                <th data-i18n="admin.col.time">Thời gian</th>
+                <th data-i18n="admin.col.actions">Hành động</th>
+              </tr>
+            </thead>
+            <tbody id="contactsBody"></tbody>
+          </table>
+        </div>
+        <div class="pagination" id="contactsPagination"></div>
+      </section>
+
+      <!-- Tab: Newsletter -->
+      <section class="admin-tab" id="tab-newsletter">
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th data-i18n="admin.col.id">ID</th>
+                <th data-i18n="admin.col.email">Email</th>
+                <th data-i18n="admin.col.status">Trạng thái</th>
+                <th data-i18n="admin.col.subscribedAt">Ngày đăng ký</th>
+              </tr>
+            </thead>
+            <tbody id="newsletterBody"></tbody>
+          </table>
+        </div>
+        <div class="pagination" id="newsletterPagination"></div>
+      </section>
+
+      <!-- Tab: Audit Log -->
+      <section class="admin-tab" id="tab-audit">
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th data-i18n="admin.col.id">ID</th>
+                <th data-i18n="admin.col.admin">Admin</th>
+                <th data-i18n="admin.col.action">Hành động</th>
+                <th data-i18n="admin.col.targetObj">Đối tượng</th>
+                <th data-i18n="admin.col.detail">Chi tiết</th>
+                <th data-i18n="admin.col.ip">IP</th>
+                <th data-i18n="admin.col.time">Thời gian</th>
+              </tr>
+            </thead>
+            <tbody id="auditBody"></tbody>
+          </table>
+        </div>
+        <div class="pagination" id="auditPagination"></div>
+      </section>
+
+      <!-- Tab: System Config -->
+      <section class="admin-tab" id="tab-site-config">
+        <div class="config-grid">
+          <div class="config-card">
+            <h3>
+              <i class="fas fa-globe"></i>
+              <span data-i18n="admin.config.brandContact"
+                >Thương hiệu &amp; liên hệ</span
+              >
+            </h3>
+            <div class="config-form">
+              <label data-i18n="admin.config.labelBrandName"
+                >Tên hiển thị (navbar)</label
+              >
+              <input
+                type="text"
+                id="cfgBrandName"
+                placeholder="AI Translator"
+              />
+              <label data-i18n="admin.config.labelSystemName"
+                >Tên hệ thống (legal pages)</label
+              >
+              <input
+                type="text"
+                id="cfgSystemName"
+                placeholder="AI Translation System"
+              />
+              <label data-i18n="admin.config.labelLogo">Logo</label>
+              <select id="cfgLogoType">
+                <option value="icon" data-i18n="admin.config.logoIcon">
+                  Icon Font Awesome
+                </option>
+                <option value="image" data-i18n="admin.config.logoImage">
+                  Ảnh (URL)
+                </option>
+              </select>
+              <input type="text" id="cfgLogoIcon" placeholder="fa-language" />
+              <input
+                type="text"
+                id="cfgLogoImageUrl"
+                placeholder="https://... hoặc /avatars/logo.png"
+              />
+              <label data-i18n="admin.config.labelSupportEmail"
+                >Email hỗ trợ</label
+              >
+              <input
+                type="email"
+                id="cfgSupportEmail"
+                placeholder="support@example.com"
+              />
+              <label data-i18n="admin.config.labelCompany"
+                >Tên công ty / đơn vị</label
+              >
+              <input type="text" id="cfgCompanyName" />
+              <label data-i18n="admin.config.labelAddress">Địa chỉ</label>
+              <input type="text" id="cfgCompanyAddress" />
+              <label data-i18n="admin.config.labelWebsite">Website</label>
+              <input type="text" id="cfgWebsiteUrl" placeholder="https://..." />
+              <button
+                type="button"
+                class="btn-accent"
+                onclick="saveSiteConfigGeneral()"
+              >
+                <i class="fas fa-save"></i>
+                <span data-i18n="admin.config.saveBrand"
+                  >Lưu thương hiệu &amp; liên hệ</span
+                >
+              </button>
+            </div>
+          </div>
+
+          <div class="config-card">
+            <h3>
+              <i class="fas fa-tags"></i>
+              <span data-i18n="admin.config.plans">Gói cước</span>
+            </h3>
+            <div class="config-form">
+              <div class="plan-edit-row">
+                <strong>Free</strong>
+                <label data-i18n="admin.config.labelTokenCap">Token cap</label>
+                <input type="number" id="cfgFreeTokens" min="0" step="1000" />
+              </div>
+              <div class="plan-edit-row">
+                <strong>Pro</strong>
+                <label data-i18n="admin.config.labelPriceVnd">Giá (VNĐ)</label>
+                <input type="number" id="cfgProPrice" min="0" step="1000" />
+                <label data-i18n="admin.config.labelToken">Token</label>
+                <input type="number" id="cfgProTokens" min="0" step="1000" />
+              </div>
+              <div class="plan-edit-row">
+                <strong>ProMax</strong>
+                <label data-i18n="admin.config.labelPriceVnd">Giá (VNĐ)</label>
+                <input type="number" id="cfgProMaxPrice" min="0" step="1000" />
+                <label data-i18n="admin.config.labelToken">Token</label>
+                <input type="number" id="cfgProMaxTokens" min="0" step="1000" />
+              </div>
+              <button
+                type="button"
+                class="btn-accent"
+                onclick="saveSiteConfigPlans()"
+              >
+                <i class="fas fa-save"></i>
+                <span data-i18n="admin.config.savePlans">Lưu gói cước</span>
+              </button>
+              <p
+                class="config-hint"
+                data-i18n="admin.config.packagesHint"
+                data-i18n-html
+              >
+                Free / Pro / Pro Max caps sync to
+                <code>packages.json</code>.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="config-card config-card-wide">
+          <h3>
+            <i class="fas fa-pen-to-square"></i>
+            <span data-i18n="admin.config.editPages">Chỉnh sửa nội dung trang</span>
+          </h3>
+          <p class="config-hint" data-i18n="admin.config.editPagesHint">
+            Mở từng trang trực tiếp để sửa. Ngôn ngữ nội dung theo công tắc VI/EN
+            trên site (góc trên). Lưu bản Việt sẽ tự dịch sang tiếng Anh.
+          </p>
+          <div class="cms-page-links" id="cmsPageLinks"></div>
+        </div>
+
+        <div class="config-card config-card-wide">
+          <h3>
+            <i class="fas fa-language"></i>
+            <span data-i18n="admin.config.translationApi"
+              >Cấu hình API dịch</span
+            >
+          </h3>
+          <div class="config-builtin-models" id="cfgBuiltinModelsInfo"></div>
+          <p
+            class="config-hint"
+            data-i18n="admin.config.translationApiHint2"
+            data-i18n-html
+          >
+            Thêm <strong>API mới</strong> bên dưới (Model + API Key + gói sử
+            dụng). Hệ thống tự kiểm tra key trước khi lưu.
+          </p>
+          <div class="translation-models-list" id="cfgTranslationModelsList"></div>
+          <div class="config-actions config-actions-left">
+            <button
+              type="button"
+              class="btn-icon"
+              onclick="addTranslationModelRow()"
+            >
+              <i class="fas fa-plus"></i>
+              <span data-i18n="admin.config.addModel"
+                >Thêm API dịch mới</span
+              >
+            </button>
+            <button
+              type="button"
+              class="btn-accent"
+              onclick="saveTranslationConfig()"
+            >
+              <i class="fas fa-save"></i>
+              <span data-i18n="admin.config.saveTranslationApi"
+                >Lưu API mới</span
+              >
+            </button>
+          </div>
+        </div>
+
+        <p class="config-meta" id="cfgUpdatedAt"></p>
+      </section>
+    </div>
+
+    <!-- Modal: User detail -->
+    <div class="admin-modal-backdrop" id="userModal" style="display: none">
+      <div class="admin-modal">
+        <div class="modal-header">
+          <h3 id="modalUserTitle" data-i18n="admin.modal.userDetail">
+            Chi tiết người dùng
+          </h3>
+          <button class="modal-close" onclick="closeModal('userModal')">
+            &times;
+          </button>
+        </div>
+        <div class="modal-body" id="modalUserBody"></div>
+        <div class="modal-footer" id="modalUserFooter"></div>
+      </div>
+    </div>
+
+    <!-- Modal: Contact detail -->
+    <div class="admin-modal-backdrop" id="contactModal" style="display: none">
+      <div class="admin-modal">
+        <div class="modal-header">
+          <h3 data-i18n="admin.modal.contactTitle">Nội dung liên hệ</h3>
+          <button class="modal-close" onclick="closeModal('contactModal')">
+            &times;
+          </button>
+        </div>
+        <div class="modal-body" id="modalContactBody"></div>
+        <div class="modal-footer" id="modalContactFooter"></div>
+      </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="admin-toast" id="adminToast"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="/js/toast.js"></script>
+    <script src="/js/admin.js?v=20260626b"></script>
+  </body>
+</html>

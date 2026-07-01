@@ -1,5 +1,7 @@
 # XAMPP MySQL Setup Guide
 
+> **Bilingual doc:** See [docs/DATABASE_SETUP.md](docs/DATABASE_SETUP.md) (Tiếng Việt + English).
+
 ## 1️⃣ Chuẩn bị XAMPP
 
 ### Tải và cài đặt
@@ -48,19 +50,19 @@ EXIT;
 
 ## 3️⃣ Cập nhật Cấu hình Ứng dụng
 
-### File: `backend/.env`
+### File: `api_base/.env`
 
 ```dotenv
 DATABASE_URL=mysql+pymysql://root:@localhost:3306/ai_translation
 ```
 
-### File: `backend/config.py`
+### File: `api_base/app/config.py`
 
 ```python
 SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL', 'mysql+pymysql://root:@localhost:3306/ai_translation')
 ```
 
-### File: `backend/requirements.txt`
+### File: `api_base/requirements.txt`
 
 ```
 PyMySQL==1.1.0
@@ -71,7 +73,7 @@ PyMySQL==1.1.0
 ## 4️⃣ Cài đặt Dependencies
 
 ```bash
-cd backend
+cd api_base
 pip install -r requirements.txt
 pip install PyMySQL==1.1.0 --force-reinstall
 ```
@@ -83,15 +85,15 @@ pip install PyMySQL==1.1.0 --force-reinstall
 ### Kiểm tra kết nối MySQL (tùy chọn)
 
 ```bash
-cd backend
-python connect_db.py --check
+cd api_base
+python app/models/base_db.py --check
 ```
 
 ### Tạo database và bảng
 
 ```bash
-cd backend
-python connect_db.py
+cd api_base
+python app/models/base_db.py
 ```
 
 Script sẽ:
@@ -104,7 +106,7 @@ Script sẽ:
 ## 6️⃣ Khởi động Server
 
 ```bash
-python run.py
+python run_api.py
 ```
 
 Server sẽ chạy tại: **http://127.0.0.1:5000**
@@ -159,8 +161,42 @@ Server sẽ chạy tại: **http://127.0.0.1:5000**
 
 ```bash
 # Chạy script setup để tự động tạo database và bảng
-cd backend
-python connect_db.py
+cd api_base
+python app/models/base_db.py
+```
+
+### Kết nối bị reset ngay (WinError 10054 / `Incorrect file format 'proxies_priv'`)
+
+```
+❌ pymysql.err.OperationalError: (2013, 'Lost connection ... [WinError 10054]')
+❌ Fatal error: Can't open and lock privilege tables: Incorrect file format 'proxies_priv'
+```
+
+**Nguyên nhân:** Bảng hệ thống `mysql.proxies_priv` bị sai format (thường do nâng/cài lại XAMPP MySQL không đồng bộ).
+
+**Giải pháp (PowerShell):**
+
+```powershell
+# 1) Dừng MySQL (nếu đang chạy)
+$p = Get-NetTCPConnection -LocalPort 3306 -State Listen -ErrorAction SilentlyContinue |
+	Select-Object -First 1 -ExpandProperty OwningProcess
+if ($p) { taskkill /PID $p /F }
+
+# 2) Backup file cũ và restore từ backup mặc định của XAMPP
+$ts = Get-Date -Format "yyyyMMdd_HHmmss"
+$bk = "C:/xampp/mysql/data/_repair_backup_$ts"
+New-Item -ItemType Directory -Path $bk | Out-Null
+Copy-Item "C:/xampp/mysql/data/mysql/proxies_priv.*" -Destination $bk -Force
+Copy-Item "C:/xampp/mysql/backup/mysql/proxies_priv.*" -Destination "C:/xampp/mysql/data/mysql/" -Force
+
+# 3) Start lại MySQL
+& "C:/xampp/mysql/bin/mysqld.exe" --defaults-file="C:/xampp/mysql/bin/my.ini" --standalone --console
+```
+
+**Kiểm tra sau khi sửa:**
+
+```bash
+c:\xampp\mysql\bin\mysql.exe --protocol=tcp -h 127.0.0.1 -P 3306 -u root -e "SELECT VERSION();"
 ```
 
 ---

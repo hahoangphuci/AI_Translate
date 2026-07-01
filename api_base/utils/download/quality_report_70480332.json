@@ -1,0 +1,134 @@
+{
+  "inputFile": "d:\\222683_TIEN_PHONG_TT_VL_2026 - 04-GanHoanThanh\\api_base\\app\\uploads\\861d4291913a4ce3bf8e9955ee73e972_HaHoangPhuc_222683_BTChuong6.pdf",
+  "outputFile": "d:\\222683_TIEN_PHONG_TT_VL_2026 - 04-GanHoanThanh\\api_base\\utils\\download\\translated_translated_working_821567f4.pdf",
+  "pipeline": "pdf_to_docx_to_pdf",
+  "translationMode": "none",
+  "sourceLanguage": "auto",
+  "targetLanguage": "en",
+  "totalPagesBefore": 2,
+  "totalPagesAfter": 2,
+  "pageCountChanged": false,
+  "pagesWithTextLayer": [
+    1,
+    2
+  ],
+  "pagesWithoutTextLayer": [],
+  "translatedParagraphs": 0,
+  "skippedParagraphs": 0,
+  "failedParagraphs": 0,
+  "tablesBefore": 1,
+  "tablesAfter": 1,
+  "imagesBefore": 0,
+  "imagesAfter": 0,
+  "linksBefore": 0,
+  "linksAfter": 0,
+  "ocrUsed": false,
+  "imageTextTranslated": false,
+  "fontSubstitutions": [],
+  "rowHeightChanges": [],
+  "imageLayoutChanges": [],
+  "overflowWarnings": [],
+  "missingContentWarnings": [],
+  "duplicateContentWarnings": [],
+  "untranslatedWarnings": [],
+  "skippedImagePages": [],
+  "pdfExportEngine": "microsoft_word",
+  "layoutSimilarityScore": 100,
+  "processingTimeMs": 25750,
+  "status": "success",
+  "warnings": [],
+  "originalPdfManifest": {
+    "pages": 2,
+    "pageDetails": [
+      {
+        "pageNumber": 1,
+        "width": 595.3200073242188,
+        "height": 841.9199829101562,
+        "rotation": 0,
+        "textBlocks": 20,
+        "textSpans": 41,
+        "characterCount": 1594,
+        "imageCount": 0,
+        "drawingCount": 46,
+        "linkCount": 0,
+        "hasTextLayer": true,
+        "tableCount": 1,
+        "layout": "multi_column"
+      },
+      {
+        "pageNumber": 2,
+        "width": 595.3200073242188,
+        "height": 841.9199829101562,
+        "rotation": 0,
+        "textBlocks": 16,
+        "textSpans": 44,
+        "characterCount": 1642,
+        "imageCount": 0,
+        "drawingCount": 0,
+        "linkCount": 0,
+        "hasTextLayer": true,
+        "tableCount": 0,
+        "layout": "single_column"
+      }
+    ],
+    "has_text": true,
+    "has_images": false,
+    "has_tables": true,
+    "has_multiple_columns": true,
+    "multi_column_pages": 1,
+    "has_formulas": true,
+    "has_references": false,
+    "has_abstract_heading": false,
+    "has_keywords_heading": false,
+    "has_intro_heading": false,
+    "numbered_section_hits": 0,
+    "academic_score": 2,
+    "is_academic_like": false,
+    "text_chars": 3236,
+    "is_scan": false,
+    "images": 0,
+    "drawings": 46,
+    "links": 0,
+    "tables": 1,
+    "pagesWithTextLayer": [
+      1,
+      2
+    ],
+    "pagesWithoutTextLayer": [],
+    "skippedImagePages": [],
+    "headerFooterRegions": [
+      {
+        "type": "header",
+        "bbox": [
+          72.02400207519531,
+          72.69499969482422,
+          446.4100036621094,
+          89.29999542236328
+        ],
+        "pageNumber": 1
+      },
+      {
+        "type": "header",
+        "bbox": [
+          90.02400207519531,
+          72.0751724243164,
+          514.4199829101562,
+          87.89933776855469
+        ],
+        "pageNumber": 2
+      }
+    ],
+    "tableRegions": [
+      {
+        "bbox": [
+          71.26971871512276,
+          351.10997772216797,
+          524.174298967634,
+          524.8899536132812
+        ],
+        "pageNumber": 1
+      }
+    ],
+    "layout": "multi_column"
+  }
+}

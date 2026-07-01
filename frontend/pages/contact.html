@@ -13,10 +13,11 @@
     <link rel="stylesheet" href="/css/theme-dark.css" />
     <link rel="stylesheet" href="/css/home.css" />
     <link rel="stylesheet" href="/css/contact.css" />
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
-    />
+    <link rel="stylesheet" href="/libs/fontawesome/css/all.min.css" />
+    <link rel="stylesheet" href="/css/inline_editor.css" />
+    <script src="/js/i18n_data.js"></script>
+    <script src="/js/i18n.js" defer></script>
+    <script src="/js/auth_state.js" defer></script>
   </head>
   <body class="theme-dark">
     <nav class="navbar">
@@ -41,279 +42,301 @@
       </div>
     </nav>
 
-    <section class="contact-hero page-hero">
-      <div class="container">
-        <div class="contact-hero-content">
-          <h1>Liên hệ với chúng tôi</h1>
-          <p class="contact-subtitle">
-            Chúng tôi luôn sẵn sàng hỗ trợ bạn. Hãy liên hệ để được tư vấn và
-            giải đáp mọi thắc mắc.
-          </p>
+    <!-- page-main-start -->
+    <div id="page-main">
+      <section class="contact-hero page-hero">
+        <div class="container">
+          <div class="contact-hero-content">
+            <h1>Liên hệ với chúng tôi</h1>
+            <p class="contact-subtitle">
+              Chúng tôi luôn sẵn sàng hỗ trợ bạn. Hãy liên hệ với chúng tôi để
+              được tư vấn và trả lời mọi câu hỏi.
+            </p>
+          </div>
         </div>
-      </div>
-    </section>
-
-    <section class="contact-content">
-      <div class="container">
-        <div class="contact-grid">
-          <!-- Contact Form -->
-          <div class="contact-form-section">
-            <div class="contact-form-container glassmorphism">
-              <h2>Gửi tin nhắn</h2>
-              <p>
-                Hãy để lại thông tin và chúng tôi sẽ liên hệ lại trong vòng 24
-                giờ.
-              </p>
-
-              <form class="contact-form" onsubmit="handleContactSubmit(event)">
-                <div class="form-row">
-                  <div class="form-group">
-                    <label for="contact-firstname">Họ</label>
-                    <input
-                      type="text"
-                      id="contact-firstname"
-                      required
-                      placeholder="Nhập họ của bạn"
-                    />
-                  </div>
-                  <div class="form-group">
-                    <label for="contact-lastname">Tên</label>
-                    <input
-                      type="text"
-                      id="contact-lastname"
-                      required
-                      placeholder="Nhập tên của bạn"
-                    />
-                  </div>
-                </div>
-
-                <div class="form-group">
-                  <label for="contact-email">Email</label>
-                  <input
-                    type="email"
-                    id="contact-email"
-                    required
-                    placeholder="Nhập email của bạn"
-                  />
-                </div>
-
-                <div class="form-group">
-                  <label for="contact-company">Công ty (tùy chọn)</label>
-                  <input
-                    type="text"
-                    id="contact-company"
-                    placeholder="Nhập tên công ty"
-                  />
-                </div>
-
-                <div class="form-group">
-                  <label for="contact-subject">Chủ đề</label>
-                  <!-- Native select kept but visually hidden for form submission -->
-                  <div class="custom-select-wrapper">
-                    <div id="contact-subject-custom" class="custom-select">
-                      Chọn chủ đề
+      </section>
+      <section class="contact-content">
+        <div class="container">
+          <div class="contact-grid">
+            <div class="contact-form-section">
+              <div class="contact-form-container glassmorphism">
+                <h2>Gửi tin nhắn</h2>
+                <p>
+                  Hãy để lại thông tin của bạn và chúng tôi sẽ liên hệ với bạn
+                  trong vòng 24h giờ.
+                </p>
+                <form
+                  class="contact-form"
+                  novalidate=""
+                  onsubmit="handleContactSubmit(event)"
+                >
+                  <div class="form-row">
+                    <div class="form-group">
+                      <label for="contact-firstname">Họ</label>
+                      <input
+                        id="contact-firstname"
+                        placeholder="Nhập họ của bạn"
+                        required=""
+                        type="text"
+                      />
                     </div>
-                    <div
-                      id="contact-subject-options"
-                      class="custom-select-options"
-                    >
-                      <div class="custom-select-option" data-value="">
-                        Chọn chủ đề
-                      </div>
-                      <div class="custom-select-option" data-value="general">
-                        Câu hỏi chung
-                      </div>
-                      <div class="custom-select-option" data-value="technical">
-                        Hỗ trợ kỹ thuật
-                      </div>
-                      <div class="custom-select-option" data-value="billing">
-                        Thanh toán
+                    <div class="form-group">
+                      <label for="contact-lastname">Tên</label>
+                      <input
+                        id="contact-lastname"
+                        placeholder="Nhập tên của bạn"
+                        required=""
+                        type="text"
+                      />
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <label for="contact-email">Email</label>
+                    <input
+                      id="contact-email"
+                      placeholder="Nhập email của bạn"
+                      required=""
+                      type="email"
+                    />
+                  </div>
+                  <div class="form-group">
+                    <label for="contact-company">Công ty (tùy chọn)</label>
+                    <input
+                      id="contact-company"
+                      placeholder="Nhập tên công ty"
+                      type="text"
+                    />
+                  </div>
+                  <div class="form-group">
+                    <label for="contact-subject">Đề tài</label>
+                    Lựa chọn gốc được giữ lại nhưng ẩn trực quan để gửi biểu mẫu
+                    <div class="custom-select-wrapper">
+                      <div class="custom-select" id="contact-subject-custom">
+                        Chọn một chủ đề
                       </div>
                       <div
-                        class="custom-select-option"
-                        data-value="partnership"
+                        class="custom-select-options"
+                        id="contact-subject-options"
                       >
-                        Hợp tác
-                      </div>
-                      <div class="custom-select-option" data-value="enterprise">
-                        Doanh nghiệp
-                      </div>
-                      <div class="custom-select-option" data-value="other">
-                        Khác
+                        <div class="custom-select-option" data-value="">
+                          Chọn một chủ đề
+                        </div>
+                        <div class="custom-select-option" data-value="general">
+                          Câu hỏi chung
+                        </div>
+                        <div
+                          class="custom-select-option"
+                          data-value="technical"
+                        >
+                          Hỗ trợ kỹ thuật
+                        </div>
+                        <div class="custom-select-option" data-value="billing">
+                          Chi trả
+                        </div>
+                        <div
+                          class="custom-select-option"
+                          data-value="partnership"
+                        >
+                          hợp tác
+                        </div>
+                        <div
+                          class="custom-select-option"
+                          data-value="enterprise"
+                        >
+                          Doanh nghiệp
+                        </div>
+                        <div class="custom-select-option" data-value="other">
+                          Khác
+                        </div>
                       </div>
                     </div>
+                    <select
+                      class="custom-select-native-hidden"
+                      id="contact-subject"
+                      required=""
+                    >
+                      <option value="">Chọn chủ đề</option>
+                      <option value="general">Câu hỏi chung</option>
+                      <option value="technical">Hỗ trợ kỹ thuật</option>
+                      <option value="billing">Thanh toán</option>
+                      <option value="partnership">Hợp tác</option>
+                      <option value="enterprise">Doanh nghiệp</option>
+                      <option value="other">Khác</option>
+                    </select>
                   </div>
-                  <select
-                    id="contact-subject"
-                    required
-                    class="custom-select-native-hidden"
-                  >
-                    <option value="">Chọn chủ đề</option>
-                    <option value="general">Câu hỏi chung</option>
-                    <option value="technical">Hỗ trợ kỹ thuật</option>
-                    <option value="billing">Thanh toán</option>
-                    <option value="partnership">Hợp tác</option>
-                    <option value="enterprise">Doanh nghiệp</option>
-                    <option value="other">Khác</option>
-                  </select>
+                  <div class="form-group">
+                    <label for="contact-message">Nội dung tin nhắn</label>
+                    <textarea
+                      id="contact-message"
+                      placeholder="Mô tả chi tiết vấn đề hoặc câu hỏi của bạn..."
+                      required=""
+                      rows="6"
+                    ></textarea>
+                  </div>
+                  <div class="form-options">
+                    <label class="checkbox-label">
+                      <input id="contact-newsletter" type="checkbox" />
+                      <span class="checkmark"></span>
+                      <span class="checkbox-text"
+                        >Nhận tin tức và cập nhật từ AI Translatorr</span
+                      >
+                    </label>
+                  </div>
+                  <button class="btn-primary contact-submit" type="submit">
+                    <i class="fas fa-paper-plane"></i> Gửi tin nhắn
+                  </button>
+                </form>
+              </div>
+            </div>
+            <div class="contact-info-section">
+              <div class="contact-info-card glassmorphism">
+                <h3>Thông tin liên hệ</h3>
+                <div class="contact-info-item">
+                  <div class="info-icon">
+                    <i class="fas fa-map-marker-alt"></i>
+                  </div>
+                  <div class="info-content">
+                    <h4>Địa chỉ</h4>
+                    <p>123 Đường ABC, Quận XYZ<br />Hồ Chí Minh, Việt Nam</p>
+                  </div>
                 </div>
-
-                <div class="form-group">
-                  <label for="contact-message">Nội dung tin nhắn</label>
-                  <textarea
-                    id="contact-message"
-                    required
-                    placeholder="Mô tả chi tiết vấn đề hoặc câu hỏi của bạn..."
-                    rows="6"
-                  ></textarea>
+                <div class="contact-info-item">
+                  <div class="info-icon">
+                    <i class="fas fa-phone"></i>
+                  </div>
+                  <div class="info-content">
+                    <h4>Điện thoại</h4>
+                    <p>+84 123 456 789</p>
+                    <p>+84 987 654 321</p>
+                  </div>
                 </div>
-
-                <div class="form-options">
-                  <label class="checkbox-label">
-                    <input type="checkbox" id="contact-newsletter" />
-                    <span class="checkmark"></span>
-                    Nhận tin tức và cập nhật từ AI Translator
-                  </label>
+                <div class="contact-info-item">
+                  <div class="info-icon">
+                    <i class="fas fa-envelope"></i>
+                  </div>
+                  <div class="info-content">
+                    <h4>Email</h4>
+                    <p>support@aitranslator.vn</p>
+                    <p>sales@aitranslator.vn</p>
+                  </div>
                 </div>
-
-                <button type="submit" class="btn-primary contact-submit">
-                  <i class="fas fa-paper-plane"></i> Gửi tin nhắn
-                </button>
+                <div class="contact-info-item">
+                  <div class="info-icon">
+                    <i class="fas fa-clock"></i>
+                  </div>
+                  <div class="info-content">
+                    <h4>Giờ làm việc</h4>
+                    <p>Thứ Hai - Thứ Sáu: 8:00 - 18:00</p>
+                    <p>Thứ bảy: 8:00 - 12:00</p>
+                    <p>Chủ Nhật: Nghỉ ngơi</p>
+                  </div>
+                </div>
+              </div>
+              <div class="quick-contact glassmorphism">
+                <h3>Liên hệ nhanh chóng</h3>
+                <div class="quick-options">
+                  <a class="quick-option" href="#">
+                    <i class="fab fa-facebook-messenger"></i>
+                    <span>Tin nhắn</span>
+                  </a>
+                  <a class="quick-option" href="#">
+                    <i class="fab fa-whatsapp"></i>
+                    <span>WhatsApp</span>
+                  </a>
+                  <a class="quick-option" href="#">
+                    <i class="fab fa-telegram"></i>
+                    <span>điện tín</span>
+                  </a>
+                  <a class="quick-option" href="#">
+                    <i class="fab fa-skype"></i>
+                    <span>Skype</span>
+                  </a>
+                </div>
+              </div>
+              <div class="faq-link glassmorphism">
+                <h3>Câu hỏi thường gặp</h3>
+                <p>
+                  Không tìm thấy câu trả lời? Hãy xem phần Câu hỏi thường gặp
+                  của chúng tôi.
+                </p>
+                <a class="btn-secondary" href="/support">
+                  <i class="fas fa-question-circle"></i> Xem câu hỏi thường gặp
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section
+        class="contact-content"
+        id="my-messages-section"
+        style="padding-top: 0; display: none"
+      >
+        <div class="container">
+          <div
+            class="contact-form-container glassmorphism"
+            style="max-width: 800px; margin: 0 auto"
+          >
+            <h2>
+              <i
+                class="fas fa-inbox"
+                style="color: var(--accent); margin-right: 8px"
+              ></i
+              >Tin nhắn của tôi
+            </h2>
+            <p>
+              Xem lại tin nhắn bạn đã gửi và phản hồi từ nhóm hỗ trợ của bạn.
+            </p>
+            <div id="my-messages-list" style="margin-top: 16px">
+              <p style="color: var(--muted); text-align: center; padding: 20px">
+                <i class="fas fa-spinner fa-spin"></i> Đang tải…
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section class="map-section">
+        <div class="container">
+          <div class="map-container glassmorphism">
+            <h2>Tìm đường đến văn phòng</h2>
+            <div class="map-placeholder">
+              <i class="fas fa-map-marked-alt"></i>
+              <p>Bản đồ sẽ được hiển thị ở đây</p>
+              <small>Địa chỉ: 123 Đường ABC, Quận XYZ, Hồ Chí Minh</small>
+            </div>
+          </div>
+        </div>
+      </section>
+      <section class="newsletter">
+        <div class="container">
+          <div class="newsletter-content glassmorphism">
+            <div class="newsletter-text">
+              <h2>Đăng ký để nhận tin tức</h2>
+              <p>
+                Nhận thông tin cập nhật mới nhất về sản phẩm và tính năng của
+                chúng tôi
+              </p>
+            </div>
+            <div class="newsletter-form">
+              <form onsubmit="handleNewsletterSubmit(event)">
+                <div class="newsletter-input-group">
+                  <input
+                    id="newsletter-email"
+                    placeholder="Nhập email của bạn"
+                    required=""
+                    type="email"
+                  />
+                  <button class="btn-primary" type="submit">
+                    <i class="fas fa-envelope"></i> Đăng ký
+                  </button>
+                </div>
               </form>
             </div>
           </div>
-
-          <!-- Contact Info -->
-          <div class="contact-info-section">
-            <div class="contact-info-card glassmorphism">
-              <h3>Thông tin liên hệ</h3>
-
-              <div class="contact-info-item">
-                <div class="info-icon">
-                  <i class="fas fa-map-marker-alt"></i>
-                </div>
-                <div class="info-content">
-                  <h4>Địa chỉ</h4>
-                  <p>123 Đường ABC, Quận XYZ<br />Hồ Chí Minh, Việt Nam</p>
-                </div>
-              </div>
-
-              <div class="contact-info-item">
-                <div class="info-icon">
-                  <i class="fas fa-phone"></i>
-                </div>
-                <div class="info-content">
-                  <h4>Điện thoại</h4>
-                  <p>+84 123 456 789</p>
-                  <p>+84 987 654 321</p>
-                </div>
-              </div>
-
-              <div class="contact-info-item">
-                <div class="info-icon">
-                  <i class="fas fa-envelope"></i>
-                </div>
-                <div class="info-content">
-                  <h4>Email</h4>
-                  <p>support@aitranslator.vn</p>
-                  <p>sales@aitranslator.vn</p>
-                </div>
-              </div>
-
-              <div class="contact-info-item">
-                <div class="info-icon">
-                  <i class="fas fa-clock"></i>
-                </div>
-                <div class="info-content">
-                  <h4>Giờ làm việc</h4>
-                  <p>Thứ 2 - Thứ 6: 8:00 - 18:00</p>
-                  <p>Thứ 7: 8:00 - 12:00</p>
-                  <p>Chủ nhật: Nghỉ</p>
-                </div>
-              </div>
-            </div>
-
-            <!-- Quick Contact Options -->
-            <div class="quick-contact glassmorphism">
-              <h3>Liên hệ nhanh</h3>
-              <div class="quick-options">
-                <a href="#" class="quick-option">
-                  <i class="fab fa-facebook-messenger"></i>
-                  <span>Messenger</span>
-                </a>
-                <a href="#" class="quick-option">
-                  <i class="fab fa-whatsapp"></i>
-                  <span>WhatsApp</span>
-                </a>
-                <a href="#" class="quick-option">
-                  <i class="fab fa-telegram"></i>
-                  <span>Telegram</span>
-                </a>
-                <a href="#" class="quick-option">
-                  <i class="fab fa-skype"></i>
-                  <span>Skype</span>
-                </a>
-              </div>
-            </div>
-
-            <!-- FAQ Link -->
-            <div class="faq-link glassmorphism">
-              <h3>Câu hỏi thường gặp</h3>
-              <p>
-                Không tìm thấy câu trả lời? Kiểm tra phần FAQ của chúng tôi.
-              </p>
-              <a href="#" class="btn-secondary">
-                <i class="fas fa-question-circle"></i> Xem FAQ
-              </a>
-            </div>
-          </div>
         </div>
-      </div>
-    </section>
-
-    <!-- Map Section -->
-    <section class="map-section">
-      <div class="container">
-        <div class="map-container glassmorphism">
-          <h2>Tìm đường đến văn phòng</h2>
-          <div class="map-placeholder">
-            <i class="fas fa-map-marked-alt"></i>
-            <p>Bản đồ sẽ được hiển thị ở đây</p>
-            <small>Địa chỉ: 123 Đường ABC, Quận XYZ, Hồ Chí Minh</small>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Newsletter Section -->
-    <section class="newsletter">
-      <div class="container">
-        <div class="newsletter-content glassmorphism">
-          <div class="newsletter-text">
-            <h2>Đăng ký nhận tin tức</h2>
-            <p>
-              Nhận những cập nhật mới nhất về sản phẩm và tính năng của chúng
-              tôi
-            </p>
-          </div>
-          <div class="newsletter-form">
-            <form onsubmit="handleNewsletterSubmit(event)">
-              <div class="newsletter-input-group">
-                <input
-                  type="email"
-                  id="newsletter-email"
-                  placeholder="Nhập email của bạn"
-                  required
-                />
-                <button type="submit" class="btn-primary">
-                  <i class="fas fa-envelope"></i> Đăng ký
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      </div>
-    </section>
+      </section>
+    </div>
+    <!-- page-main-end -->
 
     <footer class="footer">
       <div class="container">
@@ -340,19 +363,25 @@
           <div class="footer-section">
             <h3>Hỗ trợ</h3>
             <ul>
-              <li><a href="#">Câu hỏi thường gặp</a></li>
-              <li><a href="#">Hướng dẫn sử dụng</a></li>
-              <li><a href="#">API Documentation</a></li>
-              <li><a href="#">Trạng thái hệ thống</a></li>
+              <li><a href="/installation">Hướng dẫn cài đặt</a></li>
+              <li><a href="/user-guide">Hướng dẫn sử dụng Web</a></li>
+              <li><a href="/support">Trung tâm hỗ trợ &amp; FAQ</a></li>
+              <li><a href="/contact">Liên hệ</a></li>
+              <li>
+                <a href="mailto:support@aitranslator.vn"
+                  >support@aitranslator.vn</a
+                >
+              </li>
             </ul>
           </div>
           <div class="footer-section">
             <h3>Pháp lý</h3>
             <ul>
-              <li><a href="#">Điều khoản sử dụng</a></li>
-              <li><a href="#">Chính sách bảo mật</a></li>
-              <li><a href="#">Cookie Policy</a></li>
-              <li><a href="#">GDPR</a></li>
+              <li><a href="/terms">Điều khoản sử dụng</a></li>
+              <li><a href="/ai-terms">Điều khoản AI</a></li>
+              <li><a href="/privacy">Chính sách quyền riêng tư</a></li>
+              <li><a href="/payment-policy">Chính sách thanh toán</a></li>
+              <li><a href="/data-deletion">Chính sách xóa dữ liệu</a></li>
             </ul>
           </div>
         </div>
@@ -362,7 +391,6 @@
       </div>
     </footer>
 
-    <script src="/js/auth_state.js" defer></script>
     <script src="/js/contact.js"></script>
     <script>
       // Custom select behavior for contact subject
@@ -424,5 +452,7 @@
         }
       })();
     </script>
+    <script src="/js/site_config.js"></script>
+    <script src="/js/inline_editor.js" defer></script>
   </body>
 </html>

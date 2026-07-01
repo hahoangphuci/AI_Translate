@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Lịch sử - AI Translation System</title>
+    <title>Lịch sử dịch - AI Translation</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -13,17 +13,444 @@
     <link rel="stylesheet" href="/css/theme-dark.css" />
     <link rel="stylesheet" href="/css/home.css" />
     <link rel="stylesheet" href="/css/dashboard.css" />
+    <link rel="stylesheet" href="/libs/fontawesome/css/all.min.css" />
+    <script src="/js/i18n_data.js"></script>
+    <script src="/js/i18n.js" defer></script>
     <script src="/js/auth_state.js" defer></script>
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
-    />
     <style>
-      .page-wrap {
-        padding: 28px 0 60px;
+      /* ── History page ── */
+      html,
+      body {
+        overflow-y: auto;
       }
-      .history-actions .btn-small {
+      .history-page {
+        padding: 90px 0 60px;
+      }
+
+      /* Banner */
+      .hist-banner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        flex-wrap: wrap;
+        padding: 24px 28px;
+        border-radius: 20px;
+        background: linear-gradient(
+          120deg,
+          rgba(0, 168, 255, 0.07) 0%,
+          rgba(255, 255, 255, 0.02) 60%,
+          rgba(0, 255, 209, 0.04) 100%
+        );
+        border: 1px solid rgba(255, 255, 255, 0.07);
+        margin-bottom: 24px;
+        position: relative;
+        overflow: hidden;
+      }
+      .hist-banner::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 4px;
+        height: 100%;
+        background: linear-gradient(180deg, #00a8ff, #00ffd1);
+        border-radius: 4px 0 0 4px;
+      }
+      .hist-banner-title {
+        font-size: 1.4rem;
+        font-weight: 700;
+        color: #fff;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .hist-banner-title .fas {
+        color: #00ffd1;
+        font-size: 1.1rem;
+      }
+      .hist-banner-sub {
+        font-size: 0.85rem;
+        color: rgba(255, 255, 255, 0.4);
+        margin: 4px 0 0;
+      }
+      .hist-banner-action a {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 9px 18px;
+        border-radius: 10px;
+        background: linear-gradient(90deg, #00a8ff, #00ffd1);
+        color: #07161a;
+        font-weight: 700;
+        font-size: 0.85rem;
+        text-decoration: none;
+        box-shadow: 0 4px 14px rgba(0, 168, 255, 0.3);
+        transition: all 0.2s;
+      }
+      .hist-banner-action a:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 7px 22px rgba(0, 168, 255, 0.45);
+      }
+
+      /* Notification */
+      .hist-notify {
+        display: none;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 16px;
+        border-radius: 12px;
+        background: rgba(0, 168, 255, 0.08);
+        border: 1px solid rgba(0, 168, 255, 0.2);
+        color: rgba(255, 255, 255, 0.8);
+        font-size: 0.875rem;
+        margin-bottom: 16px;
+      }
+      .hist-notify.show {
+        display: flex;
+      }
+      .hist-notify.success {
+        background: rgba(0, 255, 209, 0.07);
+        border-color: rgba(0, 255, 209, 0.25);
+      }
+      .hist-notify.error {
+        background: rgba(239, 68, 68, 0.08);
+        border-color: rgba(239, 68, 68, 0.25);
+        color: #f87171;
+      }
+      .hist-notify .fas {
+        font-size: 0.9rem;
+        color: #00a8ff;
+      }
+      .hist-notify.success .fas {
+        color: #00ffd1;
+      }
+      .hist-notify.error .fas {
+        color: #f87171;
+      }
+      .hist-notify-close {
+        margin-left: auto;
+        background: none;
+        border: none;
+        color: rgba(255, 255, 255, 0.4);
         cursor: pointer;
+        font-size: 1rem;
+      }
+
+      /* Filter bar */
+      .hist-filter-bar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-bottom: 20px;
+      }
+      .hist-filter-bar .lang-select,
+      .hist-filter-bar input[type="date"] {
+        padding: 9px 14px;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.09);
+        border-radius: 10px;
+        color: #fff;
+        font-size: 0.85rem;
+        outline: none;
+        min-width: 140px;
+        transition: border-color 0.2s;
+      }
+      .hist-filter-bar input[type="date"]::-webkit-calendar-picker-indicator {
+        filter: invert(0.7);
+      }
+      .hist-filter-bar .lang-select:focus,
+      .hist-filter-bar input[type="date"]:focus {
+        border-color: rgba(0, 168, 255, 0.5);
+      }
+      .btn-filter {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 9px 18px;
+        border-radius: 10px;
+        border: none;
+        background: linear-gradient(90deg, #00a8ff, #00ffd1);
+        color: #07161a;
+        font-weight: 700;
+        font-size: 0.85rem;
+        cursor: pointer;
+        transition: all 0.2s;
+        box-shadow: 0 3px 10px rgba(0, 168, 255, 0.25);
+      }
+      .btn-filter:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 18px rgba(0, 168, 255, 0.4);
+      }
+      .btn-filter-clear {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        padding: 9px 16px;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: rgba(255, 255, 255, 0.04);
+        color: rgba(255, 255, 255, 0.5);
+        font-weight: 600;
+        font-size: 0.85rem;
+        cursor: pointer;
+        transition: all 0.15s;
+      }
+      .btn-filter-clear:hover {
+        background: rgba(255, 255, 255, 0.08);
+        color: #fff;
+      }
+      .hist-meta {
+        margin-left: auto;
+        font-size: 0.8rem;
+        color: rgba(255, 255, 255, 0.3);
+        flex-shrink: 0;
+      }
+
+      /* History list */
+      .hist-list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .hist-card {
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.025);
+        border: 1px solid rgba(255, 255, 255, 0.07);
+        overflow: hidden;
+        transition:
+          border-color 0.2s,
+          transform 0.15s;
+      }
+      .hist-card:hover {
+        border-color: rgba(255, 255, 255, 0.12);
+        transform: translateY(-1px);
+      }
+      .hist-card-head {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 16px;
+        background: rgba(255, 255, 255, 0.02);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        flex-wrap: wrap;
+      }
+      .hist-type-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 3px 10px;
+        border-radius: 20px;
+        font-size: 0.72rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+      }
+      .hist-type-badge.text-type {
+        background: rgba(0, 168, 255, 0.12);
+        color: #60cdff;
+        border: 1px solid rgba(0, 168, 255, 0.2);
+      }
+      .hist-type-badge.doc-type {
+        background: rgba(165, 107, 255, 0.12);
+        color: #c4a4ff;
+        border: 1px solid rgba(165, 107, 255, 0.2);
+      }
+      .hist-lang-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 3px 10px;
+        border-radius: 20px;
+        background: rgba(0, 255, 209, 0.07);
+        border: 1px solid rgba(0, 255, 209, 0.15);
+        font-size: 0.78rem;
+        color: #00ffd1;
+        font-weight: 600;
+      }
+      .hist-lang-pill .fas {
+        font-size: 0.65rem;
+        opacity: 0.7;
+      }
+      .hist-date {
+        margin-left: auto;
+        font-size: 0.78rem;
+        color: rgba(255, 255, 255, 0.3);
+        white-space: nowrap;
+      }
+
+      .hist-card-body {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+      }
+      .hist-text-pane {
+        padding: 14px 16px;
+      }
+      .hist-text-pane + .hist-text-pane {
+        border-left: 1px solid rgba(255, 255, 255, 0.05);
+      }
+      .hist-pane-label {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.7rem;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: rgba(255, 255, 255, 0.3);
+        margin-bottom: 8px;
+      }
+      .hist-pane-label .fas {
+        font-size: 0.65rem;
+      }
+      .hist-pane-label.translated {
+        color: rgba(0, 255, 209, 0.5);
+      }
+      .hist-text-content {
+        font-size: 0.875rem;
+        color: rgba(255, 255, 255, 0.75);
+        line-height: 1.55;
+        max-height: 80px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        -webkit-box-orient: vertical;
+      }
+
+      .hist-card-foot {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 16px;
+        border-top: 1px solid rgba(255, 255, 255, 0.05);
+        background: rgba(0, 0, 0, 0.08);
+      }
+      .hist-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 14px;
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: rgba(255, 255, 255, 0.04);
+        color: rgba(255, 255, 255, 0.6);
+        font-size: 0.78rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.15s;
+      }
+      .hist-btn:hover {
+        background: rgba(255, 255, 255, 0.08);
+        color: #fff;
+        border-color: rgba(255, 255, 255, 0.15);
+      }
+      .hist-btn.danger:hover {
+        background: rgba(239, 68, 68, 0.1);
+        color: #f87171;
+        border-color: rgba(239, 68, 68, 0.25);
+      }
+
+      /* Empty / Loading */
+      .hist-empty {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 64px 20px;
+        gap: 14px;
+        color: rgba(255, 255, 255, 0.3);
+        text-align: center;
+      }
+      .hist-empty .fas {
+        font-size: 2.8rem;
+        opacity: 0.25;
+      }
+      .hist-empty p {
+        font-size: 0.92rem;
+        margin: 0;
+      }
+      .hist-loading {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        padding: 48px 0;
+        color: rgba(255, 255, 255, 0.4);
+        font-size: 0.9rem;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .spin {
+        animation: spin 0.8s linear infinite;
+      }
+
+      /* Pagination */
+      .hist-pagination {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        margin-top: 24px;
+      }
+      .hist-page-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 16px;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.09);
+        background: rgba(255, 255, 255, 0.04);
+        color: rgba(255, 255, 255, 0.6);
+        font-size: 0.82rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.15s;
+      }
+      .hist-page-btn:hover:not(:disabled) {
+        background: rgba(255, 255, 255, 0.08);
+        color: #fff;
+        border-color: rgba(255, 255, 255, 0.15);
+      }
+      .hist-page-btn:disabled {
+        opacity: 0.3;
+        cursor: not-allowed;
+      }
+      .hist-page-info {
+        padding: 8px 16px;
+        font-size: 0.82rem;
+        color: rgba(255, 255, 255, 0.4);
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.07);
+        border-radius: 10px;
+      }
+
+      @media (max-width: 640px) {
+        .hist-card-body {
+          grid-template-columns: 1fr;
+        }
+        .hist-text-pane + .hist-text-pane {
+          border-left: none;
+          border-top: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        .hist-filter-bar {
+          flex-direction: column;
+          align-items: stretch;
+        }
+        .hist-filter-bar .lang-select,
+        .hist-filter-bar input[type="date"] {
+          min-width: unset;
+          width: 100%;
+        }
+        .hist-meta {
+          margin-left: 0;
+        }
       }
     </style>
   </head>
@@ -39,7 +466,7 @@
           <a href="/" class="nav-link">Trang chủ</a>
           <a href="/dashboard" class="nav-link">Dịch thuật</a>
           <a href="/history" class="nav-link active">Lịch sử</a>
-          <a href="/profile" class="nav-link">Tài khoản</a>
+          <a href="/profile" class="nav-link">Cài đặt</a>
           <button id="loginBtn" class="btn-login" style="display: none">
             <i class="fas fa-sign-in-alt"></i> Đăng nhập
           </button>
@@ -50,85 +477,115 @@
       </div>
     </nav>
 
-    <section class="dashboard">
-      <div class="container page-wrap">
-        <div class="dashboard-header">
-          <h1>Lịch sử dịch</h1>
-        </div>
-
-        <div
-          id="notificationArea"
-          class="notification-area"
-          style="display: none"
-        >
-          <div class="notification-content">
-            <i class="fas fa-info-circle"></i>
-            <span id="notificationText"></span>
-            <button onclick="closeNotification()" class="notification-close">
-              &times;
-            </button>
+    <section class="history-page">
+      <div class="container">
+        <!-- Banner -->
+        <div class="hist-banner">
+          <div>
+            <h1 class="hist-banner-title">
+              <i class="fas fa-history"></i> Lịch sử dịch
+            </h1>
+            <p class="hist-banner-sub">
+              Xem lại các bản dịch trước đây của bạn
+            </p>
+          </div>
+          <div class="hist-banner-action">
+            <a href="/dashboard"><i class="fas fa-plus"></i> Dịch mới</a>
           </div>
         </div>
 
-        <div class="glassmorphism" style="padding: 18px">
-          <div class="history-filters" style="margin-bottom: 14px">
-            <select id="historyType" class="lang-select">
-              <option value="all">Tất cả</option>
-              <option value="text">Văn bản</option>
-              <option value="document">Tài liệu</option>
-            </select>
-            <input type="date" id="historyDate" />
-            <button class="btn-secondary" onclick="applyHistoryFilter()">
-              <i class="fas fa-filter"></i> Lọc
-            </button>
-          </div>
+        <!-- Notification -->
+        <div id="histNotify" class="hist-notify">
+          <i class="fas fa-info-circle"></i>
+          <span id="histNotifyText"></span>
+          <button class="hist-notify-close" onclick="closeHistNotify()">
+            ×
+          </button>
+        </div>
 
-          <div id="historyList" class="history-list"></div>
+        <!-- Filter bar -->
+        <div class="hist-filter-bar">
+          <select id="historyType" class="lang-select">
+            <option value="all">Tất cả loại</option>
+            <option value="text">Văn bản</option>
+            <option value="document">Tài liệu</option>
+          </select>
+          <input type="date" id="historyDate" />
+          <button class="btn-filter" onclick="applyHistoryFilter()">
+            <i class="fas fa-search"></i> Tìm kiếm
+          </button>
+          <button class="btn-filter-clear" onclick="clearFilter()">
+            <i class="fas fa-times"></i> Xóa lọc
+          </button>
+          <span class="hist-meta" id="histMeta"></span>
+        </div>
 
-          <div class="pagination" style="margin-top: 14px">
-            <button id="prevPage" onclick="changePage(-1)">Trước</button>
-            <span id="pageInfo">Trang 1</span>
-            <button id="nextPage" onclick="changePage(1)">Sau</button>
+        <!-- List -->
+        <div id="historyList" class="hist-list">
+          <div class="hist-loading">
+            <i class="fas fa-circle-notch spin"></i> Đang tải...
           </div>
+        </div>
+
+        <!-- Pagination -->
+        <div class="hist-pagination">
+          <button
+            class="hist-page-btn"
+            id="prevPage"
+            onclick="changePage(-1)"
+            disabled
+          >
+            <i class="fas fa-chevron-left"></i> Trước
+          </button>
+          <span class="hist-page-info" id="pageInfo">Trang 1 / 1</span>
+          <button
+            class="hist-page-btn"
+            id="nextPage"
+            onclick="changePage(1)"
+            disabled
+          >
+            Sau <i class="fas fa-chevron-right"></i>
+          </button>
         </div>
       </div>
     </section>
 
+    <script src="/js/toast.js"></script>
     <script>
-      const state = {
-        page: 1,
-        pages: 1,
-        type: "all",
-        date: "",
-      };
+      const state = { page: 1, pages: 1, type: "all", date: "" };
 
-      function showNotify(message, type = "info") {
-        const area = document.getElementById("notificationArea");
-        const txt = document.getElementById("notificationText");
-        if (!area || !txt) return alert(message);
+      function showHistNotify(message, type = "info") {
+        const el = document.getElementById("histNotify");
+        const txt = document.getElementById("histNotifyText");
+        const icon = el ? el.querySelector(".fas") : null;
+        if (!el || !txt) return;
+        el.className = "hist-notify show " + type;
+        if (icon) {
+          icon.className =
+            type === "success"
+              ? "fas fa-check-circle"
+              : type === "error"
+                ? "fas fa-exclamation-circle"
+                : "fas fa-info-circle";
+        }
         txt.textContent = message;
-        area.style.display = "block";
-        setTimeout(() => {
-          area.style.display = "none";
-        }, 3500);
+        setTimeout(() => closeHistNotify(), 3500);
       }
 
-      function closeNotification() {
-        const area = document.getElementById("notificationArea");
-        if (area) area.style.display = "none";
+      function closeHistNotify() {
+        const el = document.getElementById("histNotify");
+        if (el) el.className = "hist-notify";
       }
 
       function getAuthHeaders() {
         const token = localStorage.getItem("token");
-        if (token && !String(token).startsWith("fake")) {
+        if (token && !String(token).startsWith("fake"))
           return { Authorization: `Bearer ${token}` };
-        }
         return {};
       }
 
       function ensureLoggedIn() {
-        const token = localStorage.getItem("token");
-        if (!token) {
+        if (!localStorage.getItem("token")) {
           window.location.href = "/auth";
           return false;
         }
@@ -140,13 +597,12 @@
           .replace(/&/g, "&amp;")
           .replace(/</g, "&lt;")
           .replace(/>/g, "&gt;")
-          .replace(/\"/g, "&quot;")
+          .replace(/"/g, "&quot;")
           .replace(/'/g, "&#39;");
       }
 
       async function loadHistory() {
         if (!ensureLoggedIn()) return;
-
         const params = new URLSearchParams({
           page: String(state.page),
           per_page: "10",
@@ -155,27 +611,32 @@
         if (state.date) params.set("date", state.date);
 
         const list = document.getElementById("historyList");
-        if (list) list.innerHTML = "<p>Đang tải...</p>";
+        if (list)
+          list.innerHTML = `<div class="hist-loading"><i class="fas fa-circle-notch spin"></i> Đang tải...</div>`;
 
         const resp = await fetch(`/api/history/?${params.toString()}`, {
-          headers: {
-            ...getAuthHeaders(),
-          },
+          headers: { ...getAuthHeaders() },
         });
         const data = await resp.json().catch(() => ({}));
         if (!resp.ok) {
-          showNotify(
+          showHistNotify(
             data.error || data.message || "Không tải được lịch sử",
             "error",
           );
-          if (list) list.innerHTML = "<p>Không tải được lịch sử.</p>";
+          if (list)
+            list.innerHTML = `<div class="hist-empty"><i class="fas fa-exclamation-triangle"></i><p>Không tải được lịch sử.</p></div>`;
           return;
         }
 
         state.pages = data.pages || 1;
-        renderHistory(
-          Array.isArray(data.translations) ? data.translations : [],
-        );
+        const items = Array.isArray(data.translations) ? data.translations : [];
+        const meta = document.getElementById("histMeta");
+        if (meta)
+          meta.textContent =
+            items.length +
+            " kết quả" +
+            (data.total ? " / " + data.total + " tổng" : "");
+        renderHistory(items);
         updatePagination();
       }
 
@@ -183,10 +644,9 @@
         const list = document.getElementById("historyList");
         if (!list) return;
         if (!items.length) {
-          list.innerHTML = '<p class="no-history">Chưa có lịch sử dịch.</p>';
+          list.innerHTML = `<div class="hist-empty"><i class="fas fa-history"></i><p>Chưa có lịch sử dịch nào.</p></div>`;
           return;
         }
-
         list.innerHTML = items
           .map((item) => {
             const createdAt = item.created_at
@@ -196,38 +656,43 @@
             const dst = escapeHtml(item.target_lang || "");
             const orig = escapeHtml(item.original_text || "");
             const tran = escapeHtml(item.translated_text || "");
-            return `
-							<div class="history-item glassmorphism">
-								<div class="history-header">
-									<span class="history-date">${createdAt}</span>
-									<span class="history-lang">${src} → ${dst}</span>
-								</div>
-								<div class="history-content">
-									<div class="original-text"><strong>Nguyên bản:</strong> ${orig}</div>
-									<div class="translated-text"><strong>Dịch:</strong> ${tran}</div>
-								</div>
-								<div class="history-actions">
-									<button onclick="copyHistoryItem(${item.id}, this)" class="btn-small">
-										<i class="fas fa-copy"></i> Sao chép
-									</button>
-									<button onclick="deleteHistoryItem(${item.id}, this)" class="btn-small delete">
-										<i class="fas fa-trash"></i> Xóa
-									</button>
-								</div>
-							</div>
-						`;
+            const isDoc = (item.type || "").toLowerCase() === "document";
+            const typeBadge = isDoc
+              ? `<span class="hist-type-badge doc-type"><i class="fas fa-file-alt"></i> Tài liệu</span>`
+              : `<span class="hist-type-badge text-type"><i class="fas fa-align-left"></i> Văn bản</span>`;
+            return `<div class="hist-card" id="hist-card-${item.id}">
+            <div class="hist-card-head">
+              ${typeBadge}
+              <span class="hist-lang-pill">
+                <i class="fas fa-globe"></i> ${src} <i class="fas fa-arrow-right"></i> ${dst}
+              </span>
+              <span class="hist-date">${createdAt}</span>
+            </div>
+            <div class="hist-card-body">
+              <div class="hist-text-pane">
+                <div class="hist-pane-label"><i class="fas fa-file-alt"></i> Nguyên bản</div>
+                <div class="hist-text-content">${orig || '<span style="opacity:0.3">—</span>'}</div>
+              </div>
+              <div class="hist-text-pane">
+                <div class="hist-pane-label translated"><i class="fas fa-language"></i> Bản dịch</div>
+                <div class="hist-text-content">${tran || '<span style="opacity:0.3">—</span>'}</div>
+              </div>
+            </div>
+            <div class="hist-card-foot">
+              <button class="hist-btn" onclick="copyHistoryItem(${item.id}, this)"><i class="fas fa-copy"></i> Sao chép</button>
+              <button class="hist-btn danger" onclick="deleteHistoryItem(${item.id}, this)"><i class="fas fa-trash"></i> Xóa</button>
+            </div>
+          </div>`;
           })
           .join("");
       }
 
       function updatePagination() {
-        const pageInfo = document.getElementById("pageInfo");
-        const prevBtn = document.getElementById("prevPage");
-        const nextBtn = document.getElementById("nextPage");
-        if (pageInfo)
-          pageInfo.textContent = `Trang ${state.page} / ${state.pages}`;
-        if (prevBtn) prevBtn.disabled = state.page <= 1;
-        if (nextBtn) nextBtn.disabled = state.page >= state.pages;
+        document.getElementById("pageInfo").textContent =
+          `Trang ${state.page} / ${state.pages}`;
+        document.getElementById("prevPage").disabled = state.page <= 1;
+        document.getElementById("nextPage").disabled =
+          state.page >= state.pages;
       }
 
       function changePage(delta) {
@@ -238,48 +703,65 @@
       }
 
       function applyHistoryFilter() {
-        const typeEl = document.getElementById("historyType");
-        const dateEl = document.getElementById("historyDate");
-        state.type = (typeEl && typeEl.value) || "all";
-        state.date = (dateEl && dateEl.value) || "";
+        state.type = document.getElementById("historyType").value || "all";
+        state.date = document.getElementById("historyDate").value || "";
+        state.page = 1;
+        loadHistory();
+      }
+
+      function clearFilter() {
+        document.getElementById("historyType").value = "all";
+        document.getElementById("historyDate").value = "";
+        state.type = "all";
+        state.date = "";
         state.page = 1;
         loadHistory();
       }
 
       async function copyHistoryItem(id, buttonEl) {
-        const card = buttonEl ? buttonEl.closest(".history-item") : null;
+        const card = buttonEl ? buttonEl.closest(".hist-card") : null;
         const t = card
-          ? (card.querySelector(".translated-text") || {}).innerText
+          ? (
+              card.querySelector(
+                ".hist-text-pane:last-of-type .hist-text-content",
+              ) || {}
+            ).innerText
           : "";
-        const text = (t || "").replace(/^Dịch:\s*/i, "");
         try {
-          await navigator.clipboard.writeText(text);
-          showNotify("Đã sao chép!", "success");
+          await navigator.clipboard.writeText((t || "").trim());
+          showHistNotify("Đã sao chép bản dịch!", "success");
         } catch (e) {
-          showNotify("Không sao chép được", "error");
+          showHistNotify("Không sao chép được", "error");
         }
       }
 
       async function deleteHistoryItem(id, buttonEl) {
-        if (!confirm("Xóa bản dịch này?")) return;
+        const ok = await showConfirm({
+          title: "Xóa bản dịch",
+          message: "Xóa bản dịch này?",
+          confirmText: "Xóa",
+          danger: true,
+        });
+        if (!ok) return;
         const resp = await fetch(`/api/history/${id}`, {
           method: "DELETE",
-          headers: {
-            ...getAuthHeaders(),
-          },
+          headers: { ...getAuthHeaders() },
         });
         const data = await resp.json().catch(() => ({}));
         if (!resp.ok) {
-          showNotify(data.error || data.message || "Xóa thất bại", "error");
+          showHistNotify(data.error || data.message || "Xóa thất bại", "error");
           return;
         }
-        showNotify("Đã xóa", "success");
+        showHistNotify("Đã xóa", "success");
         loadHistory();
       }
 
-      document.addEventListener("DOMContentLoaded", () => {
-        loadHistory();
-      });
+      document.addEventListener("DOMContentLoaded", loadHistory);
     </script>
+    <script src="/js/cms_loader.js"></script>
+    <script src="/js/site_config.js"></script>
+    <script src="/js/ui_translate.js"></script>
+    <script src="/js/page_content.js"></script>
+    <script src="/js/inline_editor.js"></script>
   </body>
 </html>

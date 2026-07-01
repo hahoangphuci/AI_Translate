@@ -1,0 +1,174 @@
+{
+  "inputFile": "d:\\222683_TIEN_PHONG_TT_VL_2026 - 04-GanHoanThanh\\api_base\\app\\uploads\\1ad174e8a102444eb9ded9f28911d299_test1_bao_cao_song_ngu.pdf",
+  "outputFile": "d:\\222683_TIEN_PHONG_TT_VL_2026 - 04-GanHoanThanh\\api_base\\utils\\download\\translated_translated_working_c05f6b83.pdf",
+  "pipeline": "pdf_to_docx_to_pdf",
+  "translationMode": "none",
+  "sourceLanguage": "auto",
+  "targetLanguage": "en",
+  "totalPagesBefore": 2,
+  "totalPagesAfter": 4,
+  "pageCountChanged": true,
+  "pagesWithTextLayer": [
+    1,
+    2
+  ],
+  "pagesWithoutTextLayer": [],
+  "translatedParagraphs": 0,
+  "skippedParagraphs": 0,
+  "failedParagraphs": 0,
+  "tablesBefore": 1,
+  "tablesAfter": 5,
+  "imagesBefore": 4,
+  "imagesAfter": 2,
+  "linksBefore": 4,
+  "linksAfter": 0,
+  "ocrUsed": false,
+  "imageTextTranslated": false,
+  "fontSubstitutions": [],
+  "rowHeightChanges": [],
+  "imageLayoutChanges": [],
+  "overflowWarnings": [],
+  "missingContentWarnings": [],
+  "duplicateContentWarnings": [],
+  "untranslatedWarnings": [],
+  "skippedImagePages": [],
+  "pdfExportEngine": "microsoft_word",
+  "layoutSimilarityScore": 55,
+  "processingTimeMs": 38500,
+  "status": "warning",
+  "warnings": [],
+  "originalPdfManifest": {
+    "pages": 2,
+    "pageDetails": [
+      {
+        "pageNumber": 1,
+        "width": 595.303955078125,
+        "height": 841.8897705078125,
+        "rotation": 0,
+        "textBlocks": 15,
+        "textSpans": 45,
+        "characterCount": 1262,
+        "imageCount": 2,
+        "drawingCount": 32,
+        "linkCount": 4,
+        "hasTextLayer": true,
+        "tableCount": 1,
+        "layout": "single_column"
+      },
+      {
+        "pageNumber": 2,
+        "width": 595.303955078125,
+        "height": 841.8897705078125,
+        "rotation": 0,
+        "textBlocks": 9,
+        "textSpans": 37,
+        "characterCount": 1196,
+        "imageCount": 2,
+        "drawingCount": 8,
+        "linkCount": 0,
+        "hasTextLayer": true,
+        "tableCount": 0,
+        "layout": "single_column"
+      }
+    ],
+    "has_text": true,
+    "has_images": true,
+    "has_tables": true,
+    "has_multiple_columns": false,
+    "multi_column_pages": 0,
+    "has_formulas": false,
+    "has_references": true,
+    "has_abstract_heading": true,
+    "has_keywords_heading": false,
+    "has_intro_heading": false,
+    "numbered_section_hits": 1,
+    "academic_score": 4,
+    "is_academic_like": true,
+    "text_chars": 2458,
+    "is_scan": false,
+    "images": 4,
+    "drawings": 40,
+    "links": 4,
+    "tables": 1,
+    "pagesWithTextLayer": [
+      1,
+      2
+    ],
+    "pagesWithoutTextLayer": [],
+    "skippedImagePages": [],
+    "headerFooterRegions": [
+      {
+        "type": "header",
+        "bbox": [
+          56.79999923706055,
+          35.70576858520508,
+          507.1599426269531,
+          45.7497673034668
+        ],
+        "pageNumber": 1
+      },
+      {
+        "type": "footer",
+        "bbox": [
+          56.79999923706055,
+          732.1087646484375,
+          515.7057495117188,
+          769.8717651367188
+        ],
+        "pageNumber": 1
+      },
+      {
+        "type": "footer",
+        "bbox": [
+          56.79999923706055,
+          794.1957397460938,
+          508.1159973144531,
+          806.4717407226562
+        ],
+        "pageNumber": 1
+      },
+      {
+        "type": "header",
+        "bbox": [
+          56.79999923706055,
+          35.70576858520508,
+          507.1599426269531,
+          45.7497673034668
+        ],
+        "pageNumber": 2
+      },
+      {
+        "type": "header",
+        "bbox": [
+          56.79999923706055,
+          72.57078552246094,
+          434.3200988769531,
+          90.4267807006836
+        ],
+        "pageNumber": 2
+      },
+      {
+        "type": "footer",
+        "bbox": [
+          56.79999923706055,
+          794.1957397460938,
+          508.1159973144531,
+          806.4717407226562
+        ],
+        "pageNumber": 2
+      }
+    ],
+    "tableRegions": [
+      {
+        "bbox": [
+          56.78749942779541,
+          366.3070297241211,
+          519.6687698364258,
+          495.47576904296875
+        ],
+        "pageNumber": 1
+      }
+    ],
+    "layout": "single_column"
+  }
+}

@@ -1,13 +1,9 @@
 document.addEventListener("DOMContentLoaded", function () {
-  const form = document.getElementById("profile-form");
   const nameInput = document.getElementById("profile-name");
   const emailInput = document.getElementById("profile-email");
   const avatarInput = document.getElementById("profile-avatar");
   const bioInput = document.getElementById("profile-bio");
-  const msg = document.getElementById("profile-message");
   const avatarCircle = document.getElementById("avatarCircle");
-
-  if (!form) return;
 
   function escapeHtml(str) {
     return String(str).replace(/[&<>\"]/g, (m) => {
@@ -104,6 +100,12 @@ document.addEventListener("DOMContentLoaded", function () {
     if (bioInput && merged.bio) bioInput.value = merged.bio;
 
     setAvatarPreview(merged.name, merged.avatarUrl || merged.avatar_url);
+
+    // Sync avatar panel display fields
+    const avatarNameEl = document.getElementById("avatarName");
+    const avatarEmailEl = document.getElementById("avatarEmail");
+    if (avatarNameEl && merged.name) avatarNameEl.textContent = merged.name;
+    if (avatarEmailEl && merged.email) avatarEmailEl.textContent = merged.email;
   })();
 
   if (avatarInput) {
@@ -123,40 +125,5 @@ document.addEventListener("DOMContentLoaded", function () {
       );
     });
   }
-
-  form.addEventListener("submit", async function (e) {
-    e.preventDefault();
-    const user = {
-      name: (nameInput ? nameInput.value.trim() : "") || "User",
-      email: emailInput ? emailInput.value.trim() : "",
-      avatarUrl: avatarInput ? avatarInput.value.trim() : "",
-      bio: bioInput ? bioInput.value.trim() : "",
-    };
-
-    localStorage.setItem("user", JSON.stringify(user));
-
-    const remote = await patchProfileToBackendIfPossible(user);
-    if (remote) {
-      const merged = {
-        ...user,
-        name: remote.name || user.name,
-        email: remote.email || user.email,
-        avatarUrl: remote.avatar_url || user.avatarUrl,
-      };
-      localStorage.setItem("user", JSON.stringify(merged));
-    }
-
-    if (msg) msg.textContent = "Lưu thông tin thành công!";
-    setTimeout(() => {
-      if (msg) msg.textContent = "";
-      window.location.href = "/";
-    }, 800);
-  });
-
-  const cancel = document.getElementById("profile-cancel");
-  if (cancel) {
-    cancel.addEventListener("click", function () {
-      window.location.href = "/";
-    });
-  }
+  // Saving is handled by window.saveProfile() defined in profile.html
 });

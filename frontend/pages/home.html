@@ -12,10 +12,10 @@
     />
     <link rel="stylesheet" href="/css/theme-dark.css" />
     <link rel="stylesheet" href="/css/home.css" />
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
-    />
+    <link rel="stylesheet" href="/libs/fontawesome/css/all.min.css" />
+    <link rel="stylesheet" href="/css/inline_editor.css" />
+    <script src="/js/i18n_data.js"></script>
+    <script src="/js/i18n.js" defer></script>
     <script src="/js/auth_state.js" defer></script>
     <script src="/js/languages.js"></script>
     <script src="/js/populate_languages.js" defer></script>
@@ -33,12 +33,12 @@
           <a href="#home" class="nav-link active">Trang chủ</a>
           <a href="#features" class="nav-link">Tính năng</a>
           <a href="#pricing" class="nav-link">Giá cả</a>
-          <a href="about.html" class="nav-link">Về chúng tôi</a>
-          <a href="contact.html" class="nav-link">Liên hệ</a>
+          <a href="/about" class="nav-link">Về chúng tôi</a>
+          <a href="/contact" class="nav-link">Liên hệ</a>
           <button
             id="loginBtn"
             class="btn-login"
-            onclick="window.location.href = 'auth.html'"
+            onclick="window.location.href = '/auth'"
           >
             Đăng nhập
           </button>
@@ -51,398 +51,347 @@
       </div>
     </nav>
 
-    <section id="home" class="hero">
-      <div class="hero-container">
-        <div class="hero-content">
-          <h1 class="hero-title">
-            Dịch Văn Bản & Tài Liệu<br />
-            <span class="highlight">Giữ Định Dạng Gốc</span>
-          </h1>
-          <p class="hero-subtitle">
-            Sử dụng trí tuệ nhân tạo tiên tiến để dịch 100+ ngôn ngữ với chất
-            lượng cao nhất
-          </p>
-          <div class="hero-buttons">
-            <button
-              class="btn-primary"
-              onclick="window.location.href = 'dashboard.html'"
-            >
-              <i class="fas fa-play"></i> Bắt đầu dịch
+    <!-- page-main-start -->
+    <div id="page-main"><section class="hero" id="home">
+<div class="hero-container">
+<div class="hero-content">
+<h1 class="hero-title">
+            Dịch văn bản &amp; tài liệu&nbsp;<br>
+<span class="highlight">Giữ định dạng gốc</span>
+</h1>
+<p class="hero-subtitle">
+            Sử dụng trí tuệ nhân tạo tiên tiến để dịch hơn 100 ngôn ngữ một cách chất lượng
+            số lượng cao nhất xin chào</p>
+<div class="hero-buttons">
+<button class="btn-primary" onclick="window.location.href = '/dashboard'">
+<i class="fas fa-play"></i> Bắt đầu dịch
             </button>
-            <button
-              class="btn-secondary"
-              onclick="document.getElementById('quick-text').focus()"
-            >
-              <i class="fas fa-magic"></i> Dùng thử ngay
+<button class="btn-secondary" onclick="document.getElementById('quick-text').focus()">
+<i class="fas fa-magic"></i> Hãy thử ngay bây giờ
             </button>
-            <button class="btn-outline" onclick="scrollToFeatures()">
-              <i class="fas fa-info-circle"></i> Tìm hiểu thêm
+<button class="btn-outline" onclick="scrollToFeatures()">
+<i class="fas fa-info-circle"></i> Tìm hiểu thêm
             </button>
-          </div>
-        </div>
-        <div class="hero-image">
-          <div class="translation-demo">
-            <div class="demo-card glassmorphism">
-              <div class="demo-header">
-                <span class="demo-lang">EN</span>
-                <i class="fas fa-arrow-right"></i>
-                <span class="demo-lang">VI</span>
-              </div>
-              <div class="demo-content">
-                <p class="demo-text original">Hello, how are you today?</p>
-                <p class="demo-text translated">
+</div>
+</div>
+<div class="hero-image">
+<div class="translation-demo">
+<div class="demo-card glassmorphism">
+<div class="demo-header">
+<span class="demo-lang">VN</span>
+<i class="fas fa-arrow-right"></i>
+<span class="demo-lang">VI</span>
+</div>
+<div class="demo-content">
+<p class="demo-text original">Xin chào, hôm nay bạn thế nào?</p>
+<p class="demo-text translated">
                   Xin chào, hôm nay bạn thế nào?
                 </p>
-              </div>
-            </div>
-
-            <!-- Quick Translation Form -->
-            <div class="quick-translate glassmorphism">
-              <h4>Thử dịch ngay!</h4>
-              <div class="quick-form">
-                <input
-                  type="text"
-                  id="quick-text"
-                  placeholder="Nhập văn bản cần dịch..."
-                  maxlength="100"
-                />
-                <select
-                  id="quick-target-lang"
-                  class="lang-select"
-                  data-placeholder="Chọn ngôn ngữ"
-                >
-                  <option value="vi">Tiếng Việt</option>
-                  <option value="en">English</option>
-                  <option value="fr">Français</option>
-                  <option value="de">Deutsch</option>
-                </select>
-                <button class="btn-secondary" onclick="quickTranslate()">
-                  <i class="fas fa-language"></i> Dịch
+</div>
+</div><div class="quick-translate glassmorphism">
+<h4>Hãy thử dịch ngay bây giờ!</h4>
+<div class="quick-form">
+<input id="quick-text" maxlength="100" placeholder="Nhập văn bản cần dịch..." type="text">
+<div class="custom-lang-select-wrapper"><select class="lang-select custom-select-native-hidden" data-_customized="1" data-placeholder="Chọn ngôn ngữ" id="quick-target-lang"><option disabled="" value="">Chọn ngôn ngữ</option><option value="af">Tiếng Afrikaans (af)</option><option value="sq">Tiếng Albania (sq)</option><option value="am">Tiếng Amharic (am)</option><option value="ar">Tiếng Ả Rập (ar)</option><option value="hy">Tiếng Armenia (hy)</option><option value="az">Tiếng Azerbaijan (az)</option><option value="eu">Tiếng Basque (eu)</option><option value="be">Tiếng Belarus (be)</option><option value="bn">Tiếng Bengal (bn)</option><option value="bs">Tiếng Bosnia (bs)</option><option value="bg">Tiếng Bulgaria (bg)</option><option value="ca">Tiếng Catalan (ca)</option><option value="ceb">Cebuano (ceb)</option><option value="ny">Chichewa (ny)</option><option value="zh">Tiếng Trung (Giản thể) (zh)</option><option value="zh-TW">Tiếng Trung (Phồn thể) (zh-TW)</option><option value="co">Corsican (đồng)</option><option value="hr">Tiếng Croatia (giờ)</option><option value="cs">Tiếng Séc (cs)</option><option value="da">tiếng Đan Mạch (da)</option><option value="nl">Tiếng Hà Lan (nl)</option><option value="en">Tiếng Anh (en)</option><option value="eo">Quốc tế ngữ (eo)</option><option value="et">Tiếng Estonia (et)</option><option value="tl">Tiếng Philipin (tl)</option><option value="fi">Tiếng Phần Lan (fi)</option><option value="fr">Tiếng Pháp (fr)</option><option value="fy">Tiếng Frisian (fy)</option><option value="gl">Tiếng Galicia (gl)</option><option value="ka">tiếng Gruzia (ka)</option><option value="de">Tiếng Đức (de)</option><option value="el">Tiếng Hy Lạp (el)</option><option value="gu">Gujarati (gu)</option><option value="ht">Tiếng Creole Haiti (ht)</option><option value="ha">Tiếng Hausa (ha)</option><option value="haw">tiếng Hawaii (haw)</option><option value="he">Tiếng Do Thái (anh ấy)</option><option value="hi">Tiếng Hindi (xin chào)</option><option value="hmn">Tiếng Mông (hmn)</option><option value="hu">Tiếng Hungary (hu)</option><option value="is">Tiếng Iceland (là)</option><option value="ig">Tiếng Igbo (ig)</option><option value="id">Tiếng Indonesia (id)</option><option value="ga">Tiếng Ireland (ga)</option><option value="it">Ý (nó)</option><option value="ja">Tiếng Nhật (ja)</option><option value="jw">Tiếng Java (jw)</option><option value="kn">tiếng Kannada (kn)</option><option value="kk">Tiếng Kazakhstan (kk)</option><option value="km">Khơ-me (km)</option><option value="ko">Tiếng Hàn (ko)</option><option value="ku">Tiếng Kurd (Kurmanji) (ku)</option><option value="ky">Tiếng Kyrgyz (ky)</option><option value="lo">Lào (lo)</option><option value="la">Tiếng Latinh (la)</option><option value="lv">Tiếng Latvia (lv)</option><option value="lt">Tiếng Litva (lt)</option><option value="lb">Tiếng Luxembourg (lb)</option><option value="mk">Tiếng Macedonia (mk)</option><option value="mg">Malagasy (mg)</option><option value="ms">Tiếng Mã Lai (ms)</option><option value="ml">Malayalam (ml)</option><option value="mt">Tiếng Malta (tấn)</option><option value="mi">Maori (mi)</option><option value="mr">Marathi (ông)</option><option value="mn">Mông Cổ (triệu)</option><option value="my">Myanmar (Miến Điện) (của tôi)</option><option value="ne">Tiếng Nepal (ne)</option><option value="no">Na Uy (không)</option><option value="ps">Tiếng Pa-tô (ps)</option><option value="fa">Tiếng Ba Tư (fa)</option><option value="pl">Tiếng Ba Lan (pl)</option><option value="pt">Tiếng Bồ Đào Nha (pt)</option><option value="pa">Tiếng Punjab (pa)</option><option value="ro">Rumani (ro)</option><option value="ru">Tiếng Nga (ru)</option><option value="sm">Tiếng Samoa (sm)</option><option value="gd">Tiếng Gaelic Scotland (gd)</option><option value="sr">Tiếng Serbia (sr)</option><option value="st">Sesotho (st)</option><option value="sn">Shona (sn)</option><option value="sd">tiếng Sindhi (sd)</option><option value="si">Sinhala (si)</option><option value="sk">Tiếng Slovak (sk)</option><option value="sl">Tiếng Slovenia (sl)</option><option value="so">Tiếng Somali (vì vậy)</option><option value="es">(các) tiếng Tây Ban Nha</option><option value="su">Tiếng Sundan (su)</option><option value="sw">Tiếng Swahili (sw)</option><option value="sv">Tiếng Thụy Điển (sv)</option><option value="tg">Tiếng Tajik (tg)</option><option value="ta">Tamil (ta)</option><option value="te">Tiếng Telugu (te)</option><option value="th">Thái (th)</option><option value="tr">tiếng Thổ Nhĩ Kỳ (tr)</option><option value="uk">Ukraina (Anh)</option><option value="ur">tiếng Urdu (bạn)</option><option value="uz">Tiếng Uzbek (uz)</option><option value="vi">Tiếng Việt (vi)</option><option value="cy">Tiếng Wales (cy)</option><option value="xh">Xhosa (xh)</option><option value="yi">Tiếng Yiddish (yi)</option><option value="yo">Tiếng Yoruba (yo)</option><option value="zu">Zulu (zu)</option></select><button aria-expanded="false" aria-haspopup="listbox" class="custom-lang-select" tabindex="0" type="button">Tiếng Việt (vi)</button><div class="custom-lang-options" role="listbox"><div class="custom-lang-option disabled" data-value="" role="option">Chọn ngôn ngữ</div><div class="custom-lang-option" data-value="af" role="option">Tiếng Afrikaans (af)</div><div class="custom-lang-option" data-value="sq" role="option">Tiếng Albania (sq)</div><div class="custom-lang-option" data-value="am" role="option">Tiếng Amharic (am)</div><div class="custom-lang-option" data-value="ar" role="option">Tiếng Ả Rập (ar)</div><div class="custom-lang-option" data-value="hy" role="option">Tiếng Armenia (hy)</div><div class="custom-lang-option" data-value="az" role="option">Tiếng Azerbaijan (az)</div><div class="custom-lang-option" data-value="eu" role="option">Tiếng Basque (eu)</div><div class="custom-lang-option" data-value="be" role="option">Tiếng Belarus (be)</div><div class="custom-lang-option" data-value="bn" role="option">Tiếng Bengal (bn)</div><div class="custom-lang-option" data-value="bs" role="option">Tiếng Bosnia (bs)</div><div class="custom-lang-option" data-value="bg" role="option">Tiếng Bulgaria (bg)</div><div class="custom-lang-option" data-value="ca" role="option">Tiếng Catalan (ca)</div><div class="custom-lang-option" data-value="ceb" role="option">Cebuano (ceb)</div><div class="custom-lang-option" data-value="ny" role="option">Chichewa (ny)</div><div class="custom-lang-option" data-value="zh" role="option">Tiếng Trung (Giản thể) (zh)</div><div class="custom-lang-option" data-value="zh-TW" role="option">Tiếng Trung (Phồn thể) (zh-TW)</div><div class="custom-lang-option" data-value="co" role="option">Corsican (đồng)</div><div class="custom-lang-option" data-value="hr" role="option">Tiếng Croatia (giờ)</div><div class="custom-lang-option" data-value="cs" role="option">Tiếng Séc (cs)</div><div class="custom-lang-option" data-value="da" role="option">tiếng Đan Mạch (da)</div><div class="custom-lang-option" data-value="nl" role="option">Tiếng Hà Lan (nl)</div><div class="custom-lang-option" data-value="en" role="option">Tiếng Anh (en)</div><div class="custom-lang-option" data-value="eo" role="option">Quốc tế ngữ (eo)</div><div class="custom-lang-option" data-value="et" role="option">Tiếng Estonia (et)</div><div class="custom-lang-option" data-value="tl" role="option">Tiếng Philipin (tl)</div><div class="custom-lang-option" data-value="fi" role="option">Tiếng Phần Lan (fi)</div><div class="custom-lang-option" data-value="fr" role="option">Tiếng Pháp (fr)</div><div class="custom-lang-option" data-value="fy" role="option">Tiếng Frisian (fy)</div><div class="custom-lang-option" data-value="gl" role="option">Tiếng Galicia (gl)</div><div class="custom-lang-option" data-value="ka" role="option">tiếng Gruzia (ka)</div><div class="custom-lang-option" data-value="de" role="option">Tiếng Đức (de)</div><div class="custom-lang-option" data-value="el" role="option">Tiếng Hy Lạp (el)</div><div class="custom-lang-option" data-value="gu" role="option">Gujarati (gu)</div><div class="custom-lang-option" data-value="ht" role="option">Tiếng Creole Haiti (ht)</div><div class="custom-lang-option" data-value="ha" role="option">Tiếng Hausa (ha)</div><div class="custom-lang-option" data-value="haw" role="option">tiếng Hawaii (haw)</div><div class="custom-lang-option" data-value="he" role="option">Tiếng Do Thái (anh ấy)</div><div class="custom-lang-option" data-value="hi" role="option">Tiếng Hindi (xin chào)</div><div class="custom-lang-option" data-value="hmn" role="option">Tiếng Mông (hmn)</div><div class="custom-lang-option" data-value="hu" role="option">Tiếng Hungary (hu)</div><div class="custom-lang-option" data-value="is" role="option">Tiếng Iceland (là)</div><div class="custom-lang-option" data-value="ig" role="option">Tiếng Igbo (ig)</div><div class="custom-lang-option" data-value="id" role="option">Tiếng Indonesia (id)</div><div class="custom-lang-option" data-value="ga" role="option">Tiếng Ireland (ga)</div><div class="custom-lang-option" data-value="it" role="option">Ý (nó)</div><div class="custom-lang-option" data-value="ja" role="option">Tiếng Nhật (ja)</div><div class="custom-lang-option" data-value="jw" role="option">Tiếng Java (jw)</div><div class="custom-lang-option" data-value="kn" role="option">tiếng Kannada (kn)</div><div class="custom-lang-option" data-value="kk" role="option">Tiếng Kazakhstan (kk)</div><div class="custom-lang-option" data-value="km" role="option">Khơ-me (km)</div><div class="custom-lang-option" data-value="ko" role="option">Tiếng Hàn (ko)</div><div class="custom-lang-option" data-value="ku" role="option">Tiếng Kurd (Kurmanji) (ku)</div><div class="custom-lang-option" data-value="ky" role="option">Tiếng Kyrgyz (ky)</div><div class="custom-lang-option" data-value="lo" role="option">Lào (lo)</div><div class="custom-lang-option" data-value="la" role="option">Tiếng Latinh (la)</div><div class="custom-lang-option" data-value="lv" role="option">Tiếng Latvia (lv)</div><div class="custom-lang-option" data-value="lt" role="option">Tiếng Litva (lt)</div><div class="custom-lang-option" data-value="lb" role="option">Tiếng Luxembourg (lb)</div><div class="custom-lang-option" data-value="mk" role="option">Tiếng Macedonia (mk)</div><div class="custom-lang-option" data-value="mg" role="option">Malagasy (mg)</div><div class="custom-lang-option" data-value="ms" role="option">Tiếng Mã Lai (ms)</div><div class="custom-lang-option" data-value="ml" role="option">Malayalam (ml)</div><div class="custom-lang-option" data-value="mt" role="option">Tiếng Malta (tấn)</div><div class="custom-lang-option" data-value="mi" role="option">Maori (mi)</div><div class="custom-lang-option" data-value="mr" role="option">Marathi (ông)</div><div class="custom-lang-option" data-value="mn" role="option">Mông Cổ (triệu)</div><div class="custom-lang-option" data-value="my" role="option">Myanmar (Miến Điện) (của tôi)</div><div class="custom-lang-option" data-value="ne" role="option">Tiếng Nepal (ne)</div><div class="custom-lang-option" data-value="no" role="option">Na Uy (không)</div><div class="custom-lang-option" data-value="ps" role="option">Tiếng Pa-tô (ps)</div><div class="custom-lang-option" data-value="fa" role="option">Tiếng Ba Tư (fa)</div><div class="custom-lang-option" data-value="pl" role="option">Tiếng Ba Lan (pl)</div><div class="custom-lang-option" data-value="pt" role="option">Tiếng Bồ Đào Nha (pt)</div><div class="custom-lang-option" data-value="pa" role="option">Tiếng Punjab (pa)</div><div class="custom-lang-option" data-value="ro" role="option">Rumani (ro)</div><div class="custom-lang-option" data-value="ru" role="option">Tiếng Nga (ru)</div><div class="custom-lang-option" data-value="sm" role="option">Tiếng Samoa (sm)</div><div class="custom-lang-option" data-value="gd" role="option">Tiếng Gaelic Scotland (gd)</div><div class="custom-lang-option" data-value="sr" role="option">Tiếng Serbia (sr)</div><div class="custom-lang-option" data-value="st" role="option">Sesotho (st)</div><div class="custom-lang-option" data-value="sn" role="option">Shona (sn)</div><div class="custom-lang-option" data-value="sd" role="option">tiếng Sindhi (sd)</div><div class="custom-lang-option" data-value="si" role="option">Sinhala (si)</div><div class="custom-lang-option" data-value="sk" role="option">Tiếng Slovak (sk)</div><div class="custom-lang-option" data-value="sl" role="option">Tiếng Slovenia (sl)</div><div class="custom-lang-option" data-value="so" role="option">Tiếng Somali (vì vậy)</div><div class="custom-lang-option" data-value="es" role="option">(các) tiếng Tây Ban Nha</div><div class="custom-lang-option" data-value="su" role="option">Tiếng Sundan (su)</div><div class="custom-lang-option" data-value="sw" role="option">Tiếng Swahili (sw)</div><div class="custom-lang-option" data-value="sv" role="option">Tiếng Thụy Điển (sv)</div><div class="custom-lang-option" data-value="tg" role="option">Tiếng Tajik (tg)</div><div class="custom-lang-option" data-value="ta" role="option">Tamil (ta)</div><div class="custom-lang-option" data-value="te" role="option">Tiếng Telugu (te)</div><div class="custom-lang-option" data-value="th" role="option">Thái (th)</div><div class="custom-lang-option" data-value="tr" role="option">tiếng Thổ Nhĩ Kỳ (tr)</div><div class="custom-lang-option" data-value="uk" role="option">Ukraina (Anh)</div><div class="custom-lang-option" data-value="ur" role="option">tiếng Urdu (bạn)</div><div class="custom-lang-option" data-value="uz" role="option">Tiếng Uzbek (uz)</div><div class="custom-lang-option active" data-value="vi" role="option">Tiếng Việt (vi)</div><div class="custom-lang-option" data-value="cy" role="option">Tiếng Wales (cy)</div><div class="custom-lang-option" data-value="xh" role="option">Xhosa (xh)</div><div class="custom-lang-option" data-value="yi" role="option">Tiếng Yiddish (yi)</div><div class="custom-lang-option" data-value="yo" role="option">Tiếng Yoruba (yo)</div><div class="custom-lang-option" data-value="zu" role="option">Zulu (zu)</div></div></div>
+<button class="btn-secondary" onclick="quickTranslate()">
+<i class="fas fa-language"></i> Dịch bệnh
                 </button>
-              </div>
-              <div id="quick-result" class="quick-result" style="display: none">
-                <small>Kết quả: <span id="quick-output"></span></small>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="how-it-works">
-      <div class="container">
-        <div class="section-header">
-          <h2>Hoạt động chỉ trong 3 bước</h2>
-          <p>Dịch giữ định dạng, nhanh chóng và chính xác</p>
-        </div>
-        <div class="how-grid">
-          <div class="how-step glassmorphism">
-            <div class="step-icon"><i class="fas fa-upload"></i></div>
-            <h4>1. Tải lên hoặc nhập văn bản</h4>
-            <p>
-              Hỗ trợ nhập văn bản, upload PDF/DOCX/Excel và giữ định dạng gốc.
+</div>
+<div class="quick-result" id="quick-result" style="display: none">
+<small>Kết quả: <span id="quick-output"></span></small>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<section class="how-it-works">
+<div class="container">
+<div class="section-header">
+<h2>Hoạt động chỉ trong 3 bước</h2>
+<p>Bản dịch giữ nguyên định dạng, nhanh chóng và chính xác</p>
+</div>
+<div class="how-grid">
+<div class="how-step glassmorphism">
+<div class="step-icon"><i class="fas fa-upload"></i></div>
+<h4>1. Tải lên hoặc nhập văn bản</h4>
+<p>
+              Hỗ trợ nhập văn bản, tải lên và bảo toàn định dạng PDF hoặc Word (.docx)
+              gốc.
             </p>
-          </div>
-          <div class="how-step glassmorphism">
-            <div class="step-icon"><i class="fas fa-robot"></i></div>
-            <h4>2. AI dịch tự động</h4>
-            <p>
-              Mô hình AI chuyên nghiệp dịch chính xác, tối ưu cho ngôn ngữ đích.
+</div>
+<div class="how-step glassmorphism">
+<div class="step-icon"><i class="fas fa-robot"></i></div>
+<h4>2. AI dịch tự động</h4>
+<p>
+              Mô hình AI chuyên nghiệp dịch chính xác và tối ưu cho ngôn ngữ đích.
             </p>
-          </div>
-          <div class="how-step glassmorphism">
-            <div class="step-icon"><i class="fas fa-download"></i></div>
-            <h4>3. Tải về & sử dụng</h4>
-            <p>Tải file đã dịch (PDF/DOCX) hoặc copy/easy share kết quả.</p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- CTA Section -->
-    <section class="cta">
-      <div class="container">
-        <div class="cta-content">
-          <h2>Sẵn sàng trải nghiệm dịch thuật AI?</h2>
-          <p>
-            Đăng ký tài khoản miễn phí ngay hôm nay và nhận 100 từ dịch miễn
+</div>
+<div class="how-step glassmorphism">
+<div class="step-icon"><i class="fas fa-download"></i></div>
+<h4>3. Tải xuống và sử dụng</h4>
+<p>Tải xuống tệp PDF/DOCX đã dịch hoặc sao chép/chia sẻ kết quả một cách dễ dàng.</p>
+</div>
+</div>
+</div>
+</section><section class="cta">
+<div class="container">
+<div class="cta-content">
+<h2>Sẵn sàng trải nghiệm dịch thuật AI?</h2>
+<p>
+            Đăng ký tài khoản miễn phí ngay hôm nay và được dịch 100 từ miễn phí
             phí!
           </p>
-          <div class="cta-buttons">
-            <button
-              class="btn-primary"
-              onclick="window.location.href = '/auth.html#register'"
-            >
-              <i class="fas fa-rocket"></i> Bắt đầu miễn phí
+<div class="cta-buttons">
+<button class="btn-primary" onclick="window.location.href = '/auth#register'">
+<i class="fas fa-rocket"></i> Bắt đầu miễn phí
             </button>
-            <button class="btn-secondary" onclick="scrollToFeatures()">
-              <i class="fas fa-info-circle"></i> Tìm hiểu thêm
+<button class="btn-secondary" onclick="scrollToFeatures()">
+<i class="fas fa-info-circle"></i> Tìm hiểu thêm
             </button>
-          </div>
-        </div>
-      </div>
-    </section>
-    <section id="features" class="features">
-      <div class="container">
-        <div class="section-header">
-          <h2>Tính năng nổi bật</h2>
-          <p>Công nghệ dịch thuật AI tiên tiến nhất</p>
-        </div>
-        <div class="features-grid">
-          <div class="feature-card glassmorphism">
-            <div class="feature-icon">
-              <i class="fas fa-brain"></i>
-            </div>
-            <h3>AI Tiên tiến</h3>
-            <p>
-              Sử dụng các mô hình ngôn ngữ lớn nhất để đảm bảo chất lượng dịch
-              thuật cao nhất
+</div>
+</div>
+</div>
+</section>
+<section class="features" id="features">
+<div class="container">
+<div class="section-header">
+<h2>Tính năng nổi bật</h2>
+<p>Công nghệ dịch thuật AI tiên tiến nhất</p>
+</div>
+<div class="features-grid">
+<div class="feature-card glassmorphism">
+<div class="feature-icon">
+<i class="fas fa-brain"></i>
+</div>
+<h3>AI nâng cao</h3>
+<p>
+              Sử dụng các mô hình ngôn ngữ lớn nhất để đảm bảo chất lượng dịch thuật
+              nghệ thuật cao nhất
             </p>
-          </div>
-          <div class="feature-card glassmorphism">
-            <div class="feature-icon">
-              <i class="fas fa-file-alt"></i>
-            </div>
-            <h3>Giữ định dạng</h3>
-            <p>
-              Dịch tài liệu PDF, Word, Excel mà vẫn giữ nguyên định dạng gốc
+</div>
+<div class="feature-card glassmorphism">
+<div class="feature-icon">
+<i class="fas fa-file-alt"></i>
+</div>
+<h3>Giữ định dạng</h3>
+<p>
+              Dịch tài liệu PDF và Word (.docx) trong khi vẫn giữ nguyên định dạng gốc
             </p>
-          </div>
-          <div class="feature-card glassmorphism">
-            <div class="feature-icon">
-              <i class="fas fa-globe"></i>
-            </div>
-            <h3>100+ ngôn ngữ</h3>
-            <p>Hỗ trợ dịch giữa tất cả các ngôn ngữ phổ biến trên thế giới</p>
-          </div>
-          <div class="feature-card glassmorphism">
-            <div class="feature-icon">
-              <i class="fas fa-shield-alt"></i>
-            </div>
-            <h3>Bảo mật cao</h3>
-            <p>
+</div>
+<div class="feature-card glassmorphism">
+<div class="feature-icon">
+<i class="fas fa-globe"></i>
+</div>
+<h3>Hơn 100 ngôn ngữ</h3>
+<p>Hỗ trợ dịch thuật giữa tất cả các ngôn ngữ phổ biến trên thế giới</p>
+</div>
+<div class="feature-card glassmorphism">
+<div class="feature-icon">
+<i class="fas fa-shield-alt"></i>
+</div>
+<h3>Bảo mật cao</h3>
+<p>
               Dữ liệu được mã hóa và bảo vệ tuyệt đối, không lưu trữ vĩnh viễn
             </p>
-          </div>
-          <div class="feature-card glassmorphism">
-            <div class="feature-icon">
-              <i class="fas fa-clock"></i>
-            </div>
-            <h3>Dịch nhanh</h3>
-            <p>Xử lý hàng nghìn từ chỉ trong vài giây với tốc độ siêu nhanh</p>
-          </div>
-          <div class="feature-card glassmorphism">
-            <div class="feature-icon">
-              <i class="fas fa-history"></i>
-            </div>
-            <h3>Lịch sử dịch</h3>
-            <p>
+</div>
+<div class="feature-card glassmorphism">
+<div class="feature-icon">
+<i class="fas fa-clock"></i>
+</div>
+<h3>Dịch nhanh</h3>
+<p>Xử lý hàng nghìn từ trong vài giây với tốc độ cực nhanh</p>
+</div>
+<div class="feature-card glassmorphism">
+<div class="feature-icon">
+<i class="fas fa-history"></i>
+</div>
+<h3>Lịch sử dịch thuật</h3>
+<p>
               Lưu trữ và quản lý tất cả các bản dịch của bạn một cách dễ dàng
             </p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section id="pricing" class="pricing">
-      <div class="container">
-        <div class="section-header">
-          <h2>Bảng giá</h2>
-          <p>Chọn gói phù hợp với nhu cầu của bạn</p>
-        </div>
-        <div class="pricing-grid">
-          <div class="pricing-card glassmorphism">
-            <div class="pricing-header">
-              <h3>Miễn phí</h3>
-              <div class="price">
-                <span class="amount">0đ</span>
-                <span class="period">/tháng</span>
-              </div>
-            </div>
-            <ul class="pricing-features">
-              <li><i class="fas fa-check"></i> 5.000 từ/tháng</li>
-              <li>
-                <i class="fas fa-check"></i> 3 file/tháng (PDF/DOCX/XLSX/TXT)
-              </li>
-              <li><i class="fas fa-check"></i> Giữ định dạng cơ bản</li>
-              <li><i class="fas fa-check"></i> Lịch sử 7 ngày</li>
-              <li><i class="fas fa-times"></i> Không có ưu tiên xử lý</li>
-            </ul>
-            <button
-              class="btn-primary"
-              onclick="window.location.href = 'auth.html'"
-            >
+</div>
+</div>
+</div>
+</section>
+<section class="pricing" id="pricing">
+<div class="container">
+<div class="section-header">
+<h2>Bảng giá</h2>
+<p>Chọn gói phù hợp với nhu cầu của bạn</p>
+</div>
+<div class="pricing-grid">
+<div class="pricing-card glassmorphism">
+<div class="pricing-header">
+<h3>Miễn phí</h3>
+<div class="price">
+<span class="amount">0đ</span>
+<span class="period">/thời gian</span>
+</div>
+</div>
+<ul class="pricing-features">
+<li><i class="fas fa-check"></i> 5.000 token khởi đầu</li>
+<li><i class="fas fa-check"></i> Dịch văn bản cơ bản</li>
+<li><i class="fas fa-check"></i> Tải lên tài liệu PDF/DOCX</li>
+<li><i class="fas fa-times"></i> Không có mức độ ưu tiên xử lý</li>
+</ul>
+<button class="btn-primary" onclick="goToUpgrade('free')">
               Bắt đầu miễn phí
             </button>
-          </div>
-          <div class="pricing-card glassmorphism featured">
-            <div class="pricing-badge">Phổ biến</div>
-            <div class="pricing-header">
-              <h3>Pro</h3>
-              <div class="price">
-                <span class="amount">99.000 VNĐ</span>
-                <span class="period">/tháng</span>
-              </div>
-            </div>
-            <ul class="pricing-features">
-              <li><i class="fas fa-check"></i> 120.000 từ/tháng</li>
-              <li><i class="fas fa-check"></i> 120 file/tháng</li>
-              <li><i class="fas fa-check"></i> 100+ ngôn ngữ</li>
-              <li><i class="fas fa-check"></i> Giữ định dạng nâng cao</li>
-              <li><i class="fas fa-check"></i> Lịch sử không giới hạn</li>
-            </ul>
-            <button
-              class="btn-primary featured"
-              onclick="window.location.href = 'auth.html'"
-            >
-              Đăng ký Pro
+</div>
+<div class="pricing-card glassmorphism featured">
+<div class="pricing-badge">Phổ biến</div>
+<div class="pricing-header">
+<h3>chuyên nghiệp</h3>
+<div class="price">
+<span class="amount">49.000 VNĐ</span>
+<span class="period">/thời gian</span>
+</div>
+</div>
+<ul class="pricing-features">
+<li>
+<i class="fas fa-check"></i> <strong>120.000 token</strong>
+</li>
+<li><i class="fas fa-check"></i> Dịch ký tự không giới hạn</li>
+<li><i class="fas fa-check"></i> Ưu tiên xử lý hàng đợi</li>
+<li><i class="fas fa-check"></i> Ảnh OCR và tài liệu được quét</li>
+</ul>
+<button class="btn-primary featured" onclick="goToUpgrade('pro')">
+              Nâng cấp chuyên nghiệp
             </button>
-          </div>
-          <div class="pricing-card glassmorphism">
-            <div class="pricing-header">
-              <h3>ProMax</h3>
-              <div class="price">
-                <span class="amount">199.000 VNĐ</span>
-                <span class="period">/tháng</span>
-              </div>
-            </div>
-            <ul class="pricing-features">
-              <li><i class="fas fa-check"></i> 300.000 từ/tháng</li>
-              <li><i class="fas fa-check"></i> 300 file/tháng</li>
-              <li><i class="fas fa-check"></i> Ưu tiên xử lý (Priority)</li>
-              <li>
-                <i class="fas fa-check"></i> Glossary + kiểm tra nhất quán
-              </li>
-              <li>
-                <i class="fas fa-check"></i> Xuất file linh hoạt (TXT/HTML +
-                theo định dạng)
-              </li>
-            </ul>
-            <button
-              class="btn-secondary"
-              onclick="window.location.href = 'auth.html'"
-            >
+</div>
+<div class="pricing-card glassmorphism">
+<div class="pricing-header">
+<h3>ProMax</h3>
+<div class="price">
+<span class="amount">90.000 VNĐ</span>
+<span class="period">/thời gian</span>
+</div>
+</div>
+<ul class="pricing-features">
+<li>
+<i class="fas fa-check"></i> <strong>300.000 token</strong>
+</li>
+<li><i class="fas fa-check"></i> Tất cả các tính năng chuyên nghiệp</li>
+<li><i class="fas fa-check"></i> Mô hình AI tiên tiến nhất</li>
+<li><i class="fas fa-check"></i> Hỗ trợ ưu tiên 24/7</li>
+</ul>
+<button class="btn-secondary" onclick="goToUpgrade('promax')">
               Nâng cấp ProMax
             </button>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section id="use-cases" class="features" style="padding-top: 40px">
-      <div class="container">
-        <div class="section-header">
-          <h2>Dành cho nhiều nhu cầu</h2>
-          <p>Tối ưu cho dịch tài liệu, học tập, kỹ thuật và hành chính</p>
-        </div>
-        <div class="features-grid">
-          <div class="feature-card glassmorphism">
-            <div class="feature-icon">
-              <i class="fas fa-file-signature"></i>
-            </div>
-            <h3>Hành chính – văn bản</h3>
-            <p>
-              Giữ bố cục, tiêu đề, bullet; phù hợp biên bản, công văn, hợp đồng.
+</div>
+</div>
+</div>
+</section>
+<section class="features" id="use-cases" style="padding-top: 40px">
+<div class="container">
+<div class="section-header">
+<h2>Vì nhiều nhu cầu</h2>
+<p>Tối ưu cho dịch thuật tài liệu, học thuật, kỹ thuật và hành chính</p>
+</div>
+<div class="features-grid">
+<div class="feature-card glassmorphism">
+<div class="feature-icon">
+<i class="fas fa-file-signature"></i>
+</div>
+<h3>Hành chính – văn bản</h3>
+<p>
+              Giữ nguyên bố cục, tiêu đề, dấu đầu dòng; theo biên bản, công văn, hợp đồng.
             </p>
-          </div>
-          <div class="feature-card glassmorphism">
-            <div class="feature-icon"><i class="fas fa-sitemap"></i></div>
-            <h3>Kỹ thuật – báo cáo</h3>
-            <p>
-              Ổn định thuật ngữ, hạn chế sai số đơn vị, số liệu; hỗ trợ bảng.
+</div>
+<div class="feature-card glassmorphism">
+<div class="feature-icon"><i class="fas fa-sitemap"></i></div>
+<h3>Kỹ thuật – báo cáo</h3>
+<p>
+              Ổn định thuật ngữ, hạn chế lỗi đơn vị, dữ liệu; hỗ trợ bảng.
             </p>
-          </div>
-          <div class="feature-card glassmorphism">
-            <div class="feature-icon">
-              <i class="fas fa-graduation-cap"></i>
-            </div>
-            <h3>Học tập – nghiên cứu</h3>
-            <p>
-              Dịch đoạn dài, giữ trích dẫn; tiện copy, tải xuống, lưu lịch sử.
+</div>
+<div class="feature-card glassmorphism">
+<div class="feature-icon">
+<i class="fas fa-graduation-cap"></i>
+</div>
+<h3>Học tập – nghiên cứu</h3>
+<p>
+              Dịch những đoạn văn dài, giữ trích dẫn; Sao chép, tải xuống và lưu lịch sử một cách thuận tiện.
             </p>
-          </div>
-          <div class="feature-card glassmorphism">
-            <div class="feature-icon"><i class="fas fa-bullhorn"></i></div>
-            <h3>Marketing – nội dung</h3>
-            <p>
-              Ưu tiên tự nhiên, mạch lạc; phù hợp nội dung web, email, giới
-              thiệu.
+</div>
+<div class="feature-card glassmorphism">
+<div class="feature-icon"><i class="fas fa-bullhorn"></i></div>
+<h3>Tiếp thị – nội dung</h3>
+<p>
+              Ưu tiên sự tự nhiên và mạch lạc; nội dung web, email, giới tính phù hợp
+              giới thiệu.
             </p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section id="faq" class="how-it-works" style="padding-top: 40px">
-      <div class="container">
-        <div class="section-header">
-          <h2>Câu hỏi thường gặp</h2>
-          <p>Một vài câu trả lời nhanh trước khi bạn bắt đầu</p>
-        </div>
-        <div class="glassmorphism" style="padding: 18px 18px 8px">
-          <details style="margin-bottom: 12px">
-            <summary style="cursor: pointer; font-weight: 700; color: #fff">
-              Dịch có giữ định dạng không?
+</div>
+</div>
+</div>
+</section>
+<section class="how-it-works" id="faq" style="padding-top: 40px">
+<div class="container">
+<div class="section-header">
+<h2>Câu hỏi thường gặp</h2>
+<p>Một vài câu trả lời nhanh trước khi bạn bắt đầu</p>
+</div>
+<div class="glassmorphism" style="padding: 18px 18px 8px">
+<details style="margin-bottom: 12px">
+<summary style="cursor: pointer; font-weight: 700; color: #fff">
+              Bản dịch có giữ nguyên định dạng không?
             </summary>
-            <p style="margin-top: 10px; color: rgba(255, 255, 255, 0.85)">
-              Có. Với văn bản, bật <strong>Rich editor</strong> và
-              <strong>Giữ định dạng</strong>. Với tài liệu, hệ thống sẽ cố gắng
-              giữ heading/bảng/bullet tùy định dạng đầu vào.
+<p style="margin-top: 10px; color: rgba(255, 255, 255, 0.85)">
+              Có. Với văn bản, bật <strong>Biên tập viên phong phú</strong> Và
+              <strong>Giữ định dạng</strong>. Với tài liệu, hệ thống sẽ thử
+              giữ tiêu đề/bảng/dấu đầu dòng tùy thuộc vào định dạng đầu vào.
             </p>
-          </details>
-          <details style="margin-bottom: 12px">
-            <summary style="cursor: pointer; font-weight: 700; color: #fff">
-              Tôi có thể tải file đã dịch ở đâu?
+</details>
+<details style="margin-bottom: 12px">
+<summary style="cursor: pointer; font-weight: 700; color: #fff">
+              Tôi có thể tải file dịch ở đâu?
             </summary>
-            <p style="margin-top: 10px; color: rgba(255, 255, 255, 0.85)">
-              Sau khi upload tài liệu, hệ thống sẽ xử lý và tự động tạo link tải
-              xuống. Bạn cũng có thể xem lại trong <strong>Lịch sử</strong>.
+<p style="margin-top: 10px; color: rgba(255, 255, 255, 0.85)">
+              Sau khi upload tài liệu lên hệ thống sẽ xử lý và tự động tạo link tải
+              xuống. Bạn cũng có thể xem lại ở <strong>Lịch sử</strong>.
             </p>
-          </details>
-          <details style="margin-bottom: 12px">
-            <summary style="cursor: pointer; font-weight: 700; color: #fff">
+</details>
+<details style="margin-bottom: 12px">
+<summary style="cursor: pointer; font-weight: 700; color: #fff">
               Dữ liệu của tôi có an toàn không?
             </summary>
-            <p style="margin-top: 10px; color: rgba(255, 255, 255, 0.85)">
-              Hệ thống chỉ lưu những gì cần thiết để bạn xem lịch sử và tải kết
-              quả; bạn có thể xóa lịch sử bất cứ lúc nào trong Dashboard.
+<p style="margin-top: 10px; color: rgba(255, 255, 255, 0.85)">
+              Hệ thống chỉ lưu lại những gì cần thiết để bạn xem lịch sử và tải kết quả
+              trái cây; Bạn có thể xóa lịch sử của mình bất kỳ lúc nào trong Trang tổng quan.
             </p>
-          </details>
-          <details style="margin-bottom: 12px">
-            <summary style="cursor: pointer; font-weight: 700; color: #fff">
-              Tại sao bản dịch đôi khi bị cắt ngắn?
+</details>
+<details style="margin-bottom: 12px">
+<summary style="cursor: pointer; font-weight: 700; color: #fff">
+              Tại sao các bản dịch đôi khi bị cắt ngắn?
             </summary>
-            <p style="margin-top: 10px; color: rgba(255, 255, 255, 0.85)">
-              Một số giới hạn phụ thuộc gói và độ dài đầu vào. Nếu bạn dịch tài
-              liệu dài, hãy dùng upload tài liệu hoặc nâng gói để tăng hạn mức.
+<p style="margin-top: 10px; color: rgba(255, 255, 255, 0.85)">
+              Một số giới hạn phụ thuộc vào độ dài gói và đầu vào. Nếu bạn dịch
+              Tài liệu dài, sử dụng tài liệu tải lên hoặc gói nâng cấp để tăng giới hạn.
             </p>
-          </details>
-        </div>
-      </div>
-    </section>
-
-    <section id="stats" class="stats">
-      <div class="container">
-        <div class="stats-grid">
-          <div class="stat-item">
-            <div class="stat-number" data-target="1000000">0</div>
-            <div class="stat-label">Bản dịch đã thực hiện</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-number" data-target="50000">0</div>
-            <div class="stat-label">Người dùng hài lòng</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-number" data-target="99">0</div>
-            <div class="stat-label">Độ chính xác (%)</div>
-          </div>
-          <div class="stat-item">
-            <div class="stat-number" data-target="50">0</div>
-            <div class="stat-label">Ngôn ngữ hỗ trợ</div>
-          </div>
-        </div>
-      </div>
-    </section>
+</details>
+</div>
+</div>
+</section>
+<section class="stats" id="stats">
+<div class="container">
+<div class="stats-grid">
+<div class="stat-item">
+<div class="stat-number" data-target="270" id="statTranslations">270</div>
+<div class="stat-label">Đã dịch xong</div>
+</div>
+<div class="stat-item">
+<div class="stat-number" data-target="7" id="statUsers">7</div>
+<div class="stat-label">người dùng</div>
+</div>
+<div class="stat-item">
+<div class="stat-number" data-target="104" id="statLanguages">104</div>
+<div class="stat-label">Hỗ trợ ngôn ngữ</div>
+</div>
+</div>
+</div>
+</section></div>
+    <!-- page-main-end -->
 
     <footer class="footer">
       <div class="container">
@@ -462,26 +411,32 @@
             <ul>
               <li><a href="#features">Tính năng</a></li>
               <li><a href="#pricing">Giá cả</a></li>
-              <li><a href="about.html">Về chúng tôi</a></li>
-              <li><a href="contact.html">Liên hệ</a></li>
+              <li><a href="/about">Về chúng tôi</a></li>
+              <li><a href="/contact">Liên hệ</a></li>
             </ul>
           </div>
           <div class="footer-section">
             <h3>Hỗ trợ</h3>
             <ul>
-              <li><a href="#">Câu hỏi thường gặp</a></li>
-              <li><a href="#">Hướng dẫn sử dụng</a></li>
-              <li><a href="#">API Documentation</a></li>
-              <li><a href="#">Trạng thái hệ thống</a></li>
+              <li><a href="/installation">Hướng dẫn cài đặt</a></li>
+              <li><a href="/user-guide">Hướng dẫn sử dụng Web</a></li>
+              <li><a href="/support">Trung tâm hỗ trợ &amp; FAQ</a></li>
+              <li><a href="/contact">Liên hệ</a></li>
+              <li>
+                <a href="mailto:support@aitranslator.vn"
+                  >support@aitranslator.vn</a
+                >
+              </li>
             </ul>
           </div>
           <div class="footer-section">
             <h3>Pháp lý</h3>
             <ul>
-              <li><a href="#">Điều khoản sử dụng</a></li>
-              <li><a href="#">Chính sách bảo mật</a></li>
-              <li><a href="#">Cookie Policy</a></li>
-              <li><a href="#">GDPR</a></li>
+              <li><a href="/terms">Điều khoản sử dụng</a></li>
+              <li><a href="/ai-terms">Điều khoản AI</a></li>
+              <li><a href="/privacy">Chính sách quyền riêng tư</a></li>
+              <li><a href="/payment-policy">Chính sách thanh toán</a></li>
+              <li><a href="/data-deletion">Chính sách xóa dữ liệu</a></li>
             </ul>
           </div>
         </div>
@@ -491,6 +446,8 @@
       </div>
     </footer>
 
-    <script src="/js/home.js"></script>
+    <script src="/js/site_config.js?v=20260626"></script>
+    <script src="/js/home.js?v=20260626"></script>
+    <script src="/js/inline_editor.js" defer></script>
   </body>
 </html>

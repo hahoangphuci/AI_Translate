@@ -1,0 +1,97 @@
+/* Documentation pages — language toggle & code blocks */
+.docs-lang-switch {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 28px;
+}
+
+.docs-lang-switch button {
+  padding: 8px 20px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.docs-lang-switch button:hover {
+  border-color: rgba(0, 168, 255, 0.4);
+  color: #fff;
+}
+
+.docs-lang-switch button.active {
+  background: rgba(0, 168, 255, 0.18);
+  border-color: rgba(0, 168, 255, 0.55);
+  color: #fff;
+}
+
+.docs-lang-panel {
+  display: none;
+}
+
+.docs-lang-panel.active {
+  display: block;
+}
+
+.legal-content code,
+.legal-content pre {
+  font-family: "Consolas", "Monaco", monospace;
+  font-size: 0.85rem;
+}
+
+.legal-content pre {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 14px 16px;
+  overflow-x: auto;
+  margin: 12px 0 16px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.legal-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 14px 0 18px;
+  font-size: 0.9rem;
+}
+
+.legal-content th,
+.legal-content td {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 8px 12px;
+  text-align: left;
+}
+
+.legal-content th {
+  background: rgba(0, 168, 255, 0.1);
+  color: #fff;
+}
+
+.docs-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  margin-bottom: 28px;
+}
+
+.docs-nav a {
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  text-decoration: none;
+}
+
+.docs-nav a:hover,
+.docs-nav a.active {
+  color: #fff;
+  border-color: rgba(0, 168, 255, 0.5);
+  background: rgba(0, 168, 255, 0.12);
+}

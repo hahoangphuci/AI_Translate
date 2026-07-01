@@ -227,6 +227,177 @@ body.theme-dark {
   text-align: left;
 }
 
+/* ── Notification Bell ─────────────────────────────────────── */
+.nav-bell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-right: 6px;
+}
+
+.nav-bell-btn {
+  background: transparent;
+  border: none;
+  color: #cfe8f0;
+  font-size: 1.15rem;
+  cursor: pointer;
+  padding: 6px 8px;
+  border-radius: 8px;
+  position: relative;
+  transition:
+    color 0.2s,
+    background 0.2s;
+  display: flex;
+  align-items: center;
+}
+.nav-bell-btn:hover {
+  background: rgba(0, 255, 209, 0.08);
+  color: #00ffd1;
+}
+
+.nav-bell-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  background: #ff4b4b;
+  color: #fff;
+  font-size: 0.6rem;
+  font-weight: 700;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 3px;
+  pointer-events: none;
+}
+
+.nav-bell-dropdown {
+  display: none;
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: 340px;
+  max-height: 420px;
+  background: #0f2030;
+  border: 1px solid rgba(0, 255, 209, 0.15);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  z-index: 9999;
+  overflow: hidden;
+  flex-direction: column;
+}
+.nav-bell-dropdown.open {
+  display: flex;
+}
+
+.nav-bell-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  font-weight: 600;
+  color: #e6eef3;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+.nav-bell-markall {
+  background: transparent;
+  border: none;
+  color: #00ffd1;
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.nav-bell-markall:hover {
+  background: rgba(0, 255, 209, 0.1);
+}
+
+.nav-bell-list {
+  overflow-y: auto;
+  flex: 1;
+}
+
+.nav-bell-empty {
+  text-align: center;
+  color: #4a6a7a;
+  padding: 28px 16px;
+  font-size: 0.85rem;
+  line-height: 1.8;
+  margin: 0;
+}
+
+.nav-bell-item {
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.nav-bell-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+.nav-bell-item.unread {
+  background: rgba(0, 255, 209, 0.05);
+}
+.nav-bell-item:last-child {
+  border-bottom: none;
+}
+
+.nav-bell-item-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.nav-bell-item-title {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #cfe8f0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.nav-bell-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #00ffd1;
+  flex-shrink: 0;
+  display: inline-block;
+}
+.nav-bell-item-time {
+  font-size: 0.7rem;
+  color: #4a6a7a;
+  white-space: nowrap;
+}
+.nav-bell-item-body {
+  margin-top: 8px;
+}
+.nav-bell-item-orig {
+  font-size: 0.78rem;
+  color: #4a6a7a;
+  margin-bottom: 6px;
+  line-height: 1.4;
+  font-style: italic;
+}
+.nav-bell-item-reply {
+  font-size: 0.82rem;
+  color: #cfe8f0;
+  background: rgba(0, 255, 209, 0.07);
+  border-left: 3px solid #00ffd1;
+  border-radius: 0 6px 6px 0;
+  padding: 8px 10px;
+  line-height: 1.5;
+}
+.nav-bell-item-reply .fas {
+  color: #00ffd1;
+  margin-right: 4px;
+}
+
 .nav-link {
   color: white;
   text-decoration: none;
@@ -1305,4 +1476,74 @@ section[id] {
       padding: 30px 20px;
     }
   }
+}
+
+/* APK direct download */
+.hero-apk-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.hero-apk-hint {
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 0.85rem;
+}
+
+.btn-download-apk {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 22px;
+  border-radius: 50px;
+  font-size: 1rem;
+  font-weight: 600;
+  text-decoration: none;
+  color: #00ffd1;
+  border: 1.5px solid rgba(0, 255, 209, 0.45);
+  background: rgba(0, 255, 209, 0.08);
+  transition: all 0.25s ease;
+  cursor: pointer;
+}
+
+.btn-download-apk:hover {
+  background: rgba(0, 255, 209, 0.16);
+  border-color: #00ffd1;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 255, 209, 0.15);
+}
+
+.apk-download-card {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  padding: 24px;
+  margin: 0 0 28px;
+  border: 1px solid rgba(0, 255, 209, 0.2);
+  border-radius: 16px;
+}
+
+.apk-download-icon {
+  font-size: 2.5rem;
+  color: #00ffd1;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.apk-download-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.apk-download-alt {
+  margin-top: 14px;
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.apk-download-alt a {
+  color: #00ffd1;
+  margin-left: 6px;
 }

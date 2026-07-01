@@ -1,0 +1,145 @@
+/* Inline page editor — admin edits content directly on live pages */
+.cms-edit-fab {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 9998;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 18px;
+  border-radius: 999px;
+  border: none;
+  background: linear-gradient(135deg, #00c8b4, #00ffd1);
+  color: #041018;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  box-shadow: 0 8px 28px rgba(0, 255, 209, 0.35);
+  text-decoration: none;
+}
+
+.cms-edit-fab:hover {
+  filter: brightness(1.06);
+}
+
+body.cms-editing-active {
+  padding-bottom: 88px;
+}
+
+.cms-editor-bar {
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  z-index: 9999;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: rgba(8, 16, 28, 0.96);
+  border: 1px solid rgba(0, 255, 209, 0.35);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+  max-width: min(96vw, 920px);
+}
+
+.cms-editor-bar .cms-editor-label {
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 13px;
+  margin-right: 4px;
+  white-space: nowrap;
+}
+
+.cms-editor-bar .cms-editor-lang {
+  color: #00ffd1;
+  font-weight: 700;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.cms-editor-bar button,
+.cms-editor-bar a.cms-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 36px;
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  font-size: 13px;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.cms-editor-bar button:hover,
+.cms-editor-bar a.cms-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.cms-editor-bar .cms-btn-primary {
+  background: linear-gradient(135deg, #00c8b4, #00ffd1);
+  border-color: transparent;
+  color: #041018;
+  font-weight: 600;
+}
+
+.cms-editor-bar .cms-btn-primary:hover {
+  filter: brightness(1.05);
+}
+
+.cms-editor-bar .cms-btn-danger {
+  border-color: rgba(255, 100, 100, 0.35);
+  color: #ffb4b4;
+}
+
+.cms-editing,
+#page-main.cms-editing,
+article.legal-content.cms-editing {
+  outline: 2px dashed rgba(0, 255, 209, 0.35);
+  outline-offset: 4px;
+  border-radius: 8px;
+  min-height: 48px;
+}
+
+.cms-text-editable {
+  outline: none;
+  border-radius: 4px;
+  transition:
+    background 0.15s,
+    box-shadow 0.15s;
+}
+
+.cms-text-editable:hover {
+  background: rgba(0, 255, 209, 0.06);
+}
+
+.cms-text-editable:focus {
+  background: rgba(0, 255, 209, 0.1);
+  box-shadow: 0 0 0 2px rgba(0, 255, 209, 0.35);
+}
+
+.cms-toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 10000;
+  padding: 12px 18px;
+  border-radius: 10px;
+  background: rgba(8, 16, 28, 0.96);
+  border: 1px solid rgba(0, 255, 209, 0.35);
+  color: #fff;
+  font-size: 14px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.cms-toast.error {
+  border-color: rgba(255, 100, 100, 0.45);
+  color: #ffb4b4;
+}

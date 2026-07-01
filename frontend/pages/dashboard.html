@@ -13,14 +13,25 @@
     <link rel="stylesheet" href="/css/theme-dark.css" />
     <link rel="stylesheet" href="/css/home.css" />
     <link rel="stylesheet" href="/css/dashboard.css" />
+    <script src="/js/i18n_data.js"></script>
+    <script>
+      (function () {
+        try {
+          var tab = sessionStorage.getItem("dashboard_active_tab");
+          if (tab && tab !== "translate") {
+            document.documentElement.setAttribute("data-dashboard-tab", tab);
+          }
+        } catch (e) {
+          /* ignore */
+        }
+      })();
+    </script>
+    <script src="/js/i18n.js" defer></script>
     <script src="/js/auth_state.js" defer></script>
     <script src="/js/languages.js"></script>
     <script src="/js/populate_languages.js" defer></script>
     <script src="/js/custom_lang_selects.js" defer></script>
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
-    />
+    <link rel="stylesheet" href="/libs/fontawesome/css/all.min.css" />
   </head>
   <body class="theme-dark">
     <nav class="navbar">
@@ -33,7 +44,7 @@
           <a href="/" class="nav-link">Trang chủ</a>
           <a href="#translate" class="nav-link active">Dịch thuật</a>
           <a href="/history" class="nav-link">Lịch sử</a>
-          <a href="#settings" class="nav-link">Cài đặt</a>
+          <a href="/profile" class="nav-link">Cài đặt</a>
           <button id="loginBtn" class="btn-login" style="display: none">
             <i class="fas fa-sign-in-alt"></i> Đăng nhập
           </button>
@@ -41,30 +52,49 @@
             <i class="fas fa-sign-out-alt"></i> Đăng xuất
           </button>
         </div>
+        <div class="hamburger" onclick="toggleDashboardMenu()">
+          <span></span>
+          <span></span>
+          <span></span>
+        </div>
       </div>
     </nav>
 
     <section class="dashboard">
       <div class="container">
-        <div class="dashboard-header">
-          <h1>Dashboard</h1>
-          <div class="plan-card glassmorphism" id="planCard">
-            <div class="plan-info">
-              <strong id="planName">Free</strong>
-              <small id="planSubtitle">Gói dùng thử</small>
-            </div>
-            <div class="plan-usage">
-              <div class="usage-bar">
-                <div class="usage-fill" id="usageFill" style="width: 0%"></div>
+        <!-- Dashboard Banner -->
+        <div class="db-banner">
+          <div class="db-banner-left">
+            <p class="db-greeting">
+              Xin chào, <span id="userName" class="db-username">User</span> 👋
+            </p>
+            <p class="db-banner-sub">Hôm nay bạn muốn dịch gì?</p>
+          </div>
+          <div class="db-banner-right">
+            <div class="plan-pill" id="planCard">
+              <div class="plan-pill-icon" id="planIconWrap">
+                <i class="fas fa-leaf"></i>
               </div>
-              <div class="usage-text">
-                <span id="usedToday">0</span>/<span id="dailyQuota">100</span>
-                hôm nay
+              <div class="plan-pill-info">
+                <span id="planName">Free</span>
+                <div class="plan-pill-usage">
+                  <div class="usage-bar">
+                    <div
+                      class="usage-fill"
+                      id="usageFill"
+                      style="width: 0%"
+                    ></div>
+                  </div>
+                  <span class="usage-text"
+                    ><span id="usedToday">0</span> còn lại /
+                    <span id="dailyQuota" data-cap="5000"
+                      >5.000 token</span
+                    ></span
+                  >
+                </div>
               </div>
-            </div>
-            <div class="plan-actions">
-              <button class="btn-secondary" onclick="openUpgradeModal()">
-                Nâng cấp
+              <button class="btn-upgrade-pill" onclick="openUpgradeModal()">
+                <i class="fas fa-rocket"></i> Nâng cấp
               </button>
             </div>
           </div>
@@ -86,8 +116,8 @@
         </div>
 
         <div class="dashboard-stats">
-          <div class="stat-card glassmorphism">
-            <div class="stat-icon">
+          <div class="stat-card stat-teal">
+            <div class="stat-icon-box">
               <i class="fas fa-language"></i>
             </div>
             <div class="stat-content">
@@ -95,8 +125,8 @@
               <p>Bản dịch hôm nay</p>
             </div>
           </div>
-          <div class="stat-card glassmorphism">
-            <div class="stat-icon">
+          <div class="stat-card stat-blue">
+            <div class="stat-icon-box">
               <i class="fas fa-file-alt"></i>
             </div>
             <div class="stat-content">
@@ -104,13 +134,13 @@
               <p>Tài liệu đã dịch</p>
             </div>
           </div>
-          <div class="stat-card glassmorphism">
-            <div class="stat-icon">
-              <i class="fas fa-chart-line"></i>
+          <div class="stat-card stat-violet">
+            <div class="stat-icon-box">
+              <i class="fas fa-coins"></i>
             </div>
             <div class="stat-content">
               <h3 id="usagePercent">0%</h3>
-              <p>Đã sử dụng</p>
+              <p>Token đã sử dụng</p>
             </div>
           </div>
         </div>
@@ -118,23 +148,17 @@
         <div class="dashboard-content">
           <div class="content-tabs">
             <button class="tab-btn active" onclick="showTab('translate')">
-              Dịch Thuật
-            </button>
-            <button class="tab-btn" onclick="showTab('image')">
-              Dịch ảnh (OCR)
+              <i class="fas fa-language"></i> Dịch Thuật
             </button>
             <button class="tab-btn" onclick="showTab('upload')">
-              Upload Tài Liệu
+              <i class="fas fa-cloud-upload-alt"></i> Upload Tài Liệu
             </button>
           </div>
 
           <div id="translate-tab" class="tab-content active">
             <div class="translation-section">
-              <h2>
-                <i
-                  class="fas fa-language"
-                  style="margin-right: 8px; color: #ffd700"
-                ></i>
+              <h2 class="section-heading">
+                <i class="fas fa-language"></i>
                 Dịch Văn Bản
               </h2>
               <p class="section-note">
@@ -384,263 +408,6 @@
             </div>
           </div>
 
-          <div id="image-tab" class="tab-content">
-            <div class="upload-section">
-              <h2>Dịch từ hình ảnh (OCR)</h2>
-
-              <div
-                class="quick-compare glassmorphism"
-                aria-label="So sánh nhanh phương pháp dịch ảnh"
-              >
-                <div class="quick-compare-title">
-                  <i class="fas fa-chart-bar" aria-hidden="true"></i>
-                  <span>So sánh nhanh</span>
-                </div>
-                <table class="compare-table">
-                  <thead>
-                    <tr>
-                      <th scope="col">Trường hợp</th>
-                      <th scope="col">Dùng cách 1 (OCR)</th>
-                      <th scope="col">Dùng cách 2 (Giữ ảnh)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td>Tài liệu học tập</td>
-                      <td class="compare-center">
-                        <i class="fas fa-check compare-ok" aria-label="Có"></i>
-                      </td>
-                      <td class="compare-center">
-                        <i
-                          class="fas fa-xmark compare-no"
-                          aria-label="Không"
-                        ></i>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td>Scan sách</td>
-                      <td class="compare-center">
-                        <i class="fas fa-check compare-ok" aria-label="Có"></i>
-                      </td>
-                      <td class="compare-center">
-                        <i
-                          class="fas fa-xmark compare-no"
-                          aria-label="Không"
-                        ></i>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td>Poster quảng cáo</td>
-                      <td class="compare-center">
-                        <i
-                          class="fas fa-xmark compare-no"
-                          aria-label="Không"
-                        ></i>
-                      </td>
-                      <td class="compare-center">
-                        <i class="fas fa-check compare-ok" aria-label="Có"></i>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td>Cần chỉnh sửa nội dung</td>
-                      <td class="compare-center">
-                        <i class="fas fa-check compare-ok" aria-label="Có"></i>
-                      </td>
-                      <td class="compare-center">
-                        <i
-                          class="fas fa-xmark compare-no"
-                          aria-label="Không"
-                        ></i>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td>Cần giữ thiết kế gốc</td>
-                      <td class="compare-center">
-                        <i
-                          class="fas fa-xmark compare-no"
-                          aria-label="Không"
-                        ></i>
-                      </td>
-                      <td class="compare-center">
-                        <i class="fas fa-check compare-ok" aria-label="Có"></i>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              <div
-                class="upload-area glassmorphism"
-                id="imageUploadArea"
-                tabindex="0"
-                onclick="document.getElementById('imageInput').click()"
-              >
-                <div class="upload-icon">
-                  <i class="fas fa-image"></i>
-                </div>
-                <h3>Click để chọn ảnh, kéo thả hoặc dán (Ctrl+V)</h3>
-                <p>Định dạng hỗ trợ: PNG, JPG/JPEG, BMP, TIFF, WEBP</p>
-                <p>Gợi ý: ảnh rõ chữ sẽ OCR tốt hơn</p>
-                <p>
-                  <strong>Mẹo:</strong> bạn có thể dán ảnh từ clipboard bằng
-                  <strong>Ctrl+V</strong> ngay tại đây
-                </p>
-                <button class="btn-secondary" style="margin-top: 15px">
-                  <i class="fas fa-folder-open"></i> Chọn Ảnh
-                </button>
-                <input
-                  type="file"
-                  id="imageInput"
-                  accept="image/*,.png,.jpg,.jpeg,.bmp,.tif,.tiff,.webp"
-                  style="display: none"
-                />
-              </div>
-
-              <div id="imageInfo" class="file-info" style="display: none">
-                <div class="file-details">
-                  <i class="fas fa-image"></i>
-                  <span id="imageName"></span>
-                  <span id="imageSize"></span>
-                </div>
-                <div style="margin-top: 10px">
-                  <img
-                    id="imagePreview"
-                    alt="Preview"
-                    style="
-                      max-width: 100%;
-                      max-height: 240px;
-                      border-radius: 12px;
-                      display: none;
-                    "
-                  />
-                </div>
-
-                <div
-                  class="glassmorphism"
-                  id="imageResult"
-                  style="margin-top: 12px; display: none; padding: 12px"
-                >
-                  <div
-                    style="
-                      display: flex;
-                      gap: 12px;
-                      align-items: center;
-                      flex-wrap: wrap;
-                      justify-content: space-between;
-                    "
-                  >
-                    <div
-                      class="image-output-mode"
-                      title="Tự động: AI nhận diện bố cục để chọn trả về văn bản/ảnh/cả 2"
-                    >
-                      <span id="imageModeLabel">Chế độ:</span>
-                      <select
-                        id="imageOutputMode"
-                        class="lang-select"
-                        data-static-options="true"
-                      >
-                        <option value="auto" selected>Tự động (AI chọn)</option>
-                        <option value="text">Cách 1 (OCR): Trả văn bản</option>
-                        <option value="image">
-                          Cách 2 (Giữ ảnh): Trả ảnh đã thay chữ (beta)
-                        </option>
-                        <option value="both">
-                          Cách 3: Trả cả ảnh + văn bản
-                        </option>
-                      </select>
-                    </div>
-
-                    <button
-                      id="imageDownloadBtn"
-                      class="btn-secondary"
-                      style="display: none"
-                      onclick="downloadTranslatedImage()"
-                    >
-                      <i class="fas fa-download"></i> Tải ảnh đã dịch
-                    </button>
-                  </div>
-
-                  <div style="margin-top: 10px">
-                    <img
-                      id="imageTranslatedPreview"
-                      alt="Translated Preview"
-                      style="
-                        max-width: 100%;
-                        border-radius: 12px;
-                        display: none;
-                      "
-                    />
-                  </div>
-
-                  <div
-                    id="imageTextResult"
-                    style="
-                      margin-top: 10px;
-                      display: grid;
-                      grid-template-columns: 1fr;
-                      gap: 10px;
-                    "
-                  >
-                    <div>
-                      <h4 style="margin: 6px 0">Chữ OCR</h4>
-                      <textarea
-                        id="imageOcrText"
-                        style="width: 100%; min-height: 90px"
-                        readonly
-                      ></textarea>
-                    </div>
-                    <div>
-                      <h4 style="margin: 6px 0">Bản dịch</h4>
-                      <textarea
-                        id="imageTranslatedText"
-                        style="width: 100%; min-height: 90px"
-                        readonly
-                      ></textarea>
-                    </div>
-                  </div>
-                </div>
-                <div class="upload-controls" style="margin-top: 10px">
-                  <select
-                    id="imageSourceLang"
-                    class="lang-select"
-                    data-autodetect="true"
-                    data-autodetect-label="Tự động (Auto-detect)"
-                    data-placeholder="Ngôn ngữ nguồn"
-                  ></select>
-                  <select
-                    id="imageTargetLang"
-                    class="lang-select"
-                    data-placeholder="Ngôn ngữ đích"
-                    data-default="vi"
-                  ></select>
-                  <button
-                    id="imageTranslateBtn"
-                    class="btn-primary"
-                    onclick="uploadImageForTranslation()"
-                  >
-                    <i class="fas fa-magic"></i>
-                    <span id="imageTranslateBtnText">OCR & Dịch</span>
-                    <div
-                      id="imageTranslateBtnLoading"
-                      class="btn-loading"
-                      style="display: none"
-                    >
-                      <div class="spinner"></div>
-                    </div>
-                  </button>
-                  <button class="btn-secondary" onclick="clearImage()">
-                    <i class="fas fa-times"></i> Xóa
-                  </button>
-                </div>
-              </div>
-
-              <div id="imageError" class="error-message" style="display: none">
-                <i class="fas fa-exclamation-triangle"></i>
-                <span id="imageErrorText"></span>
-              </div>
-            </div>
-          </div>
-
           <div id="upload-tab" class="tab-content">
             <div class="upload-section">
               <h2>Upload Tài Liệu</h2>
@@ -649,10 +416,7 @@
                   <i class="fas fa-cloud-upload-alt"></i>
                 </div>
                 <h3>Click để chọn file hoặc kéo thả vào đây</h3>
-                <p>
-                  Định dạng hỗ trợ: PDF, Word (.docx), Excel (.xlsx), Text
-                  (.txt)
-                </p>
+                <p>Định dạng hỗ trợ: PDF và Word (.docx)</p>
                 <p>Giới hạn: 50MB/file</p>
                 <button class="btn-secondary" style="margin-top: 15px">
                   <i class="fas fa-folder-open"></i> Chọn File
@@ -660,7 +424,7 @@
                 <input
                   type="file"
                   id="fileInput"
-                  accept=".pdf,.docx,.xlsx,.txt"
+                  accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                   style="display: none"
                 />
               </div>
@@ -689,65 +453,89 @@
                   <div
                     class="upload-controls__row upload-controls__row--options"
                   >
-                    <label
-                      class="toggle small"
-                      title="Áp dụng cho Word (.docx) và PDF. Dùng AI Vision hoặc Tesseract OCR để đọc chữ trong ảnh."
-                    >
-                      <input type="checkbox" id="uploadDocxOcrImages" checked />
-                      <span>Dịch chữ trong ảnh (Word, PDF)</span>
-                    </label>
-                    <select
-                      id="uploadDocxOcrMode"
-                      class="lang-select"
-                      title="Chọn cách xử lý chữ trong ảnh khi dịch Word (.docx) hoặc PDF"
-                      data-static-options="true"
-                    >
-                      <option value="auto">
-                        Tự động (AI chọn theo từng ảnh)
-                      </option>
-                      <option value="image" selected>
-                        Chữ lên ảnh: thay chữ trực tiếp lên ảnh
-                      </option>
-                      <option value="text">
-                        Chữ văn bản: thay ảnh bằng văn bản dịch
-                      </option>
-                      <option value="both">
-                        Cả 2: vừa thay chữ lên ảnh vừa thêm văn bản
-                      </option>
-                    </select>
-                    <select
-                      id="uploadBilingualMode"
-                      class="lang-select"
-                      title="Song ngữ liền kề: mỗi dòng Gốc + ký tự ngăn + Dịch (chọn ký tự bên cạnh)"
-                      data-static-options="true"
-                    >
-                      <option value="none" selected>Dịch thường</option>
-                      <option value="preserve_layout">
-                        Song ngữ liền kề (Gốc | Dịch…)
-                      </option>
-                      <option value="line_by_line">Song ngữ xuống dòng</option>
-                    </select>
-                    <div class="upload-bilingual-delimiter" aria-hidden="true">
-                      <input
-                        id="uploadBilingualDelimiter"
-                        class="lang-select"
-                        type="text"
-                        list="uploadBilingualDelimiterHints"
-                        maxlength="10"
-                        value="|"
-                        placeholder="|"
-                        title="Ký tự ngăn giữa bản gốc và bản dịch (PDF song ngữ liền kề)"
-                        data-static-options="true"
-                      />
-                      <datalist id="uploadBilingualDelimiterHints">
-                        <option value="|"></option>
-                        <option value=":"></option>
-                        <option value="/"></option>
-                        <option value="&#92;"></option>
-                        <option value="-"></option>
-                        <option value="||"></option>
-                        <option value="=>"></option>
-                      </datalist>
+                    <div class="upload-config-card">
+                      <div class="upload-config-card__header">
+                        <div>
+                          <h4>Thiết lập xử lý tài liệu</h4>
+                          <p>
+                            Tối ưu cho PDF và Word, ưu tiên bố cục ổn định và dễ
+                            đọc
+                          </p>
+                        </div>
+                        <span class="upload-config-card__badge">OCR Smart</span>
+                      </div>
+
+                      <div class="upload-config-card__grid">
+                        <input
+                          type="checkbox"
+                          id="uploadDocxOcrImages"
+                          style="display: none"
+                        />
+
+                        <label class="upload-field" for="uploadBilingualMode">
+                          <span class="upload-field__label">Chế độ xuất</span>
+                          <select
+                            id="uploadBilingualMode"
+                            class="lang-select"
+                            title="Song ngữ liền kề: mỗi dòng Gốc + ký tự ngăn + Dịch (chọn ký tự bên cạnh)"
+                            data-static-options="true"
+                          >
+                            <option value="none" selected>Dịch thường</option>
+                            <option value="preserve_layout">
+                              Song ngữ liền kề (Gốc | Dịch...)
+                            </option>
+                            <option value="line_by_line">
+                              Song ngữ xuống dòng
+                            </option>
+                          </select>
+                        </label>
+
+                        <label
+                          class="upload-field"
+                          for="uploadTranslationProvider"
+                        >
+                          <span class="upload-field__label">API dịch</span>
+                          <select
+                            id="uploadTranslationProvider"
+                            class="lang-select"
+                            data-static-options="true"
+                          >
+                            <option value="google" selected>Google Translate</option>
+                            <option value="deepl">DeepL</option>
+                            <option value="gemini">
+                              Gemini 2.5 Flash (OpenRouter)
+                            </option>
+                          </select>
+                        </label>
+
+                        <label
+                          class="upload-field upload-field--delimiter upload-bilingual-delimiter"
+                          aria-hidden="true"
+                          for="uploadBilingualDelimiter"
+                        >
+                          <span class="upload-field__label">Ký tự ngăn</span>
+                          <input
+                            id="uploadBilingualDelimiter"
+                            class="lang-select"
+                            type="text"
+                            list="uploadBilingualDelimiterHints"
+                            maxlength="10"
+                            value="|"
+                            placeholder="|"
+                            title="Ký tự ngăn giữa bản gốc và bản dịch (song ngữ liền kề / PDF)"
+                            data-static-options="true"
+                          />
+                          <datalist id="uploadBilingualDelimiterHints">
+                            <option value="|"></option>
+                            <option value=":"></option>
+                            <option value="/"></option>
+                            <option value="&#92;"></option>
+                            <option value="-"></option>
+                            <option value="||"></option>
+                            <option value="=>"></option>
+                          </datalist>
+                        </label>
+                      </div>
                     </div>
                   </div>
 
@@ -856,6 +644,16 @@
               </select>
             </div>
             <div class="form-group">
+              <label>API dịch mặc định:</label>
+              <select id="translationProvider" class="lang-select">
+                <option value="google" selected>Google Translate</option>
+                <option value="deepl">DeepL</option>
+                <option value="gemini">
+                  Gemini 2.5 Flash (OpenRouter)
+                </option>
+              </select>
+            </div>
+            <div class="form-group">
               <label>
                 <input type="checkbox" id="autoSave" /> Tự động lưu bản dịch
               </label>
@@ -885,40 +683,271 @@
     </div>
 
     <!-- Upgrade Modal -->
-    <div id="upgradeModal" class="modal">
-      <div class="modal-content glassmorphism">
-        <span class="close" onclick="closeUpgradeModal()">&times;</span>
-        <h2>Nâng cấp gói</h2>
-        <p>Chọn gói phù hợp với bạn</p>
-        <div class="pricing-grid">
-          <div class="pricing-card">
-            <h3>Free</h3>
-            <p>5.000 từ/tháng • 3 file/tháng</p>
-            <button class="btn-secondary" onclick="closeUpgradeModal()">
-              Hiện đang dùng
-            </button>
+    <div id="upgradeModal" class="modal upgrade-modal">
+      <div class="upgrade-modal-content">
+        <!-- Header -->
+        <div class="upgrade-modal-header">
+          <div class="upgrade-modal-title">
+            <i class="fas fa-rocket"></i>
+            <div>
+              <h2>Nâng cấp gói</h2>
+              <p>Chọn gói phù hợp để mở khóa toàn bộ tính năng AI</p>
+            </div>
           </div>
-          <div class="pricing-card featured">
-            <h3>Pro</h3>
-            <p>120.000 từ/tháng • 120 file/tháng</p>
-            <p><strong>99.000 VNĐ</strong>/tháng</p>
-            <button class="btn-primary" onclick="startUpgrade('pro')">
-              Nâng cấp ngay
-            </button>
+          <button class="upgrade-close-btn" onclick="closeUpgradeModal()">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+
+        <!-- Step 1: Plan Selection -->
+        <div id="planSelectionView">
+          <div class="upgrade-pricing-grid">
+            <!-- Free -->
+            <div class="upgrade-plan-card free-card">
+              <div class="plan-badge">Hiện tại</div>
+              <div class="plan-icon"><i class="fas fa-leaf"></i></div>
+              <h3 class="plan-name">Free</h3>
+              <div class="plan-price">
+                <span class="price-amount">0</span>
+                <span class="price-unit">VNĐ</span>
+              </div>
+              <ul class="plan-features">
+                <li><i class="fas fa-check"></i> 5.000 token khởi đầu</li>
+                <li><i class="fas fa-check"></i> Dịch văn bản cơ bản</li>
+                <li><i class="fas fa-check"></i> Upload tài liệu PDF/DOCX</li>
+                <li class="dimmed">
+                  <i class="fas fa-times"></i> Ưu tiên xử lý
+                </li>
+              </ul>
+              <button
+                class="plan-btn plan-btn-current"
+                onclick="closeUpgradeModal()"
+              >
+                <i class="fas fa-check-circle"></i> Đang sử dụng
+              </button>
+            </div>
+
+            <!-- Pro -->
+            <div class="upgrade-plan-card pro-card">
+              <div class="plan-badge popular-badge">
+                <i class="fas fa-star"></i> Phổ biến
+              </div>
+              <div class="plan-icon pro-icon"><i class="fas fa-bolt"></i></div>
+              <h3 class="plan-name">Pro</h3>
+              <div class="plan-price">
+                <span class="price-amount">99.000</span>
+                <span class="price-unit">VNĐ/lần</span>
+              </div>
+              <ul class="plan-features">
+                <li>
+                  <i class="fas fa-check"></i> <strong>120.000 token</strong>
+                </li>
+                <li><i class="fas fa-check"></i> Dịch không giới hạn ký tự</li>
+                <li><i class="fas fa-check"></i> Ưu tiên xử lý hàng đợi</li>
+                <li><i class="fas fa-check"></i> OCR ảnh & tài liệu scan</li>
+              </ul>
+              <button
+                class="plan-btn plan-btn-pro"
+                onclick="startUpgrade('pro')"
+              >
+                <i class="fas fa-bolt"></i> Nâng cấp Pro
+              </button>
+            </div>
+
+            <!-- ProMax -->
+            <div class="upgrade-plan-card promax-card">
+              <div class="plan-badge promax-badge">
+                <i class="fas fa-crown"></i> Tốt nhất
+              </div>
+              <div class="plan-icon promax-icon">
+                <i class="fas fa-crown"></i>
+              </div>
+              <h3 class="plan-name">ProMax</h3>
+              <div class="plan-price">
+                <span class="price-amount">199.000</span>
+                <span class="price-unit">VNĐ/lần</span>
+              </div>
+              <ul class="plan-features">
+                <li>
+                  <i class="fas fa-check"></i> <strong>300.000 token</strong>
+                </li>
+                <li><i class="fas fa-check"></i> Tất cả tính năng Pro</li>
+                <li><i class="fas fa-check"></i> Mô hình AI cao cấp nhất</li>
+                <li><i class="fas fa-check"></i> Hỗ trợ ưu tiên 24/7</li>
+              </ul>
+              <button
+                class="plan-btn plan-btn-promax"
+                onclick="startUpgrade('promax')"
+              >
+                <i class="fas fa-crown"></i> Nâng cấp ProMax
+              </button>
+            </div>
           </div>
-          <div class="pricing-card">
-            <h3>ProMax</h3>
-            <p>300.000 từ/tháng • 300 file/tháng</p>
-            <p><strong>199.000 VNĐ</strong>/tháng</p>
-            <button class="btn-secondary" onclick="startUpgrade('promax')">
-              Nâng cấp ProMax
-            </button>
+        </div>
+
+        <!-- Step 2: Payment QR -->
+        <div id="paymentBox" style="display: none">
+          <div class="payment-layout">
+            <!-- Left: QR Code -->
+            <div class="payment-qr-side">
+              <div class="qr-wrapper">
+                <img id="paymentQrImage" alt="QR thanh toán" class="qr-image" />
+                <div class="qr-scanning-line"></div>
+              </div>
+              <p class="qr-hint">
+                <i class="fas fa-mobile-alt"></i> Quét QR bằng app ngân hàng
+              </p>
+            </div>
+
+            <!-- Right: Payment Info -->
+            <div class="payment-info-side">
+              <div class="payment-info-header">
+                <span class="payment-step-label">Thanh toán chuyển khoản</span>
+                <span
+                  id="paymentPackageText"
+                  class="payment-package-badge"
+                ></span>
+              </div>
+
+              <div class="payment-info-rows">
+                <div class="payment-info-row">
+                  <span class="info-label"
+                    ><i class="fas fa-university"></i> Ngân hàng</span
+                  >
+                  <span class="info-value" id="paymentBankCode"></span>
+                </div>
+                <div class="payment-info-row">
+                  <span class="info-label"
+                    ><i class="fas fa-credit-card"></i> Số tài khoản</span
+                  >
+                  <span class="info-value mono" id="paymentBankAccount"></span>
+                </div>
+                <div class="payment-info-row">
+                  <span class="info-label"
+                    ><i class="fas fa-user"></i> Chủ tài khoản</span
+                  >
+                  <span class="info-value" id="paymentBankAccountName"></span>
+                </div>
+                <div class="payment-info-row highlight-row">
+                  <span class="info-label"
+                    ><i class="fas fa-coins"></i> Số tiền</span
+                  >
+                  <span
+                    class="info-value amount-value"
+                    id="paymentAmountText"
+                  ></span>
+                </div>
+                <div class="payment-info-row content-row">
+                  <span class="info-label"
+                    ><i class="fas fa-comment-dots"></i> Nội dung CK</span
+                  >
+                  <div class="content-copy-row">
+                    <code
+                      class="transfer-code"
+                      id="paymentTransferContent"
+                    ></code>
+                    <button
+                      id="copyTransferBtn"
+                      class="copy-inline-btn"
+                      title="Sao chép"
+                    >
+                      <i class="fas fa-copy"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Countdown -->
+              <div class="payment-countdown-bar">
+                <div class="countdown-info">
+                  <i class="fas fa-clock"></i>
+                  <span
+                    >Hóa đơn hết hạn lúc <strong id="paymentExpireText"></strong
+                  ></span>
+                </div>
+                <div class="countdown-timer" id="paymentCountdown">--:--</div>
+              </div>
+
+              <!-- Status -->
+              <div id="paymentStatusText" class="payment-status-msg"></div>
+
+              <!-- Action buttons -->
+              <div class="payment-actions">
+                <button
+                  id="checkPaymentNowBtn"
+                  type="button"
+                  class="pay-action-btn pay-action-primary"
+                >
+                  <i class="fas fa-sync-alt"></i> Kiểm tra thanh toán
+                </button>
+                <button
+                  id="recreateInvoiceBtn"
+                  type="button"
+                  class="pay-action-btn pay-action-ghost"
+                >
+                  <i class="fas fa-redo"></i> Tạo hóa đơn mới
+                </button>
+              </div>
+
+              <p class="payment-auto-note">
+                <i class="fas fa-info-circle"></i> Hệ thống tự kiểm tra mỗi 8
+                giây
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 3: Success Screen -->
+        <div id="paymentSuccessBox" style="display: none">
+          <div class="success-screen">
+            <div class="success-icon-ring">
+              <i class="fas fa-check"></i>
+            </div>
+            <h2 class="success-title">Thanh toán thành công!</h2>
+            <p id="paymentSuccessDetail" class="success-detail"></p>
+            <div class="success-confetti">
+              <span>🎉</span><span>✨</span><span>🚀</span>
+            </div>
+            <p class="success-auto-close">
+              Tự đóng sau <span id="paymentSuccessCountdown">3</span> giây...
+            </p>
           </div>
         </div>
       </div>
     </div>
 
+    <script src="/js/toast.js"></script>
+    <script src="/js/site_config.js"></script>
     <script src="/js/ai_config.js" defer></script>
-    <script src="/js/dashboard.js"></script>
+    <script src="/js/dashboard.js?v=20260619b"></script>
+    <script>
+      function toggleDashboardMenu() {
+        var navLinks = document.querySelector(".nav-links");
+        var hamburger = document.querySelector(".hamburger");
+        navLinks.classList.toggle("mobile-menu");
+        hamburger.classList.toggle("active");
+      }
+      document.addEventListener("click", function (e) {
+        var navLinks = document.querySelector(".nav-links");
+        var hamburger = document.querySelector(".hamburger");
+        if (
+          !e.target.closest(".nav-container") &&
+          navLinks.classList.contains("mobile-menu")
+        ) {
+          navLinks.classList.remove("mobile-menu");
+          hamburger.classList.remove("active");
+        }
+      });
+      document
+        .querySelectorAll(".nav-links a.nav-link")
+        .forEach(function (link) {
+          link.addEventListener("click", function () {
+            var navLinks = document.querySelector(".nav-links");
+            var hamburger = document.querySelector(".hamburger");
+            navLinks.classList.remove("mobile-menu");
+            hamburger.classList.remove("active");
+          });
+        });
+    </script>
   </body>
 </html>

@@ -8,10 +8,42 @@ function initializeContactPage() {
   setupQuickContact();
   setupNewsletterForm();
   setupMapPlaceholder();
+  prefillContactForm();
+  loadMyMessages();
+}
+
+/** Nếu đã đăng nhập, điền sẵn thông tin vào form liên hệ */
+function prefillContactForm() {
+  try {
+    const raw = localStorage.getItem("user");
+    if (!raw) return;
+    const user = JSON.parse(raw);
+    if (!user) return;
+
+    const emailEl = document.getElementById("contact-email");
+    if (emailEl && user.email) {
+      emailEl.value = user.email;
+      emailEl.setAttribute("readonly", "readonly");
+      emailEl.style.opacity = "0.7";
+      emailEl.title = "Email lấy từ tài khoản đăng nhập";
+    }
+
+    // Tách tên thành họ + tên nếu có
+    if (user.name) {
+      const parts = user.name.trim().split(/\s+/);
+      const lastEl = document.getElementById("contact-lastname");
+      const firstEl = document.getElementById("contact-firstname");
+      if (lastEl && parts.length > 1) lastEl.value = parts[0];
+      if (firstEl && parts.length > 0) firstEl.value = parts[parts.length - 1];
+    }
+  } catch (e) {
+    /* ignore */
+  }
 }
 
 function setupFormValidation() {
-  const contactForm = document.getElementById("contact-form");
+  const contactForm = document.querySelector(".contact-form");
+  if (!contactForm) return;
 
   // Real-time validation
   const inputs = contactForm.querySelectorAll("input, textarea, select");
@@ -150,15 +182,15 @@ async function handleContactSubmit(event) {
     return;
   }
 
-  // Collect form data
+  // Collect form data (optional fields may be absent on some page variants)
   const formData = {
-    firstName: document.getElementById("contact-firstname").value,
-    lastName: document.getElementById("contact-lastname").value,
-    email: document.getElementById("contact-email").value,
-    company: document.getElementById("contact-company").value,
-    subject: document.getElementById("contact-subject").value,
-    message: document.getElementById("contact-message").value,
-    newsletter: document.getElementById("contact-newsletter").checked,
+    firstName: form.querySelector("#contact-firstname")?.value?.trim() ?? "",
+    lastName: form.querySelector("#contact-lastname")?.value?.trim() ?? "",
+    email: form.querySelector("#contact-email")?.value?.trim() ?? "",
+    company: form.querySelector("#contact-company")?.value?.trim() ?? "",
+    subject: form.querySelector("#contact-subject")?.value ?? "",
+    message: form.querySelector("#contact-message")?.value?.trim() ?? "",
+    newsletter: form.querySelector("#contact-newsletter")?.checked ?? false,
   };
 
   // Show loading
@@ -167,19 +199,49 @@ async function handleContactSubmit(event) {
   submitBtn.disabled = true;
 
   try {
-    // Here you would make API call to submit contact form
-    // For now, simulate submission
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    const res = await fetch("/api/contact/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        first_name: formData.firstName,
+        last_name: formData.lastName,
+        email: formData.email,
+        subject: formData.subject || "general",
+        message: formData.message,
+      }),
+    });
+    const result = await res.json();
+    if (!res.ok) {
+      const fieldErrors = result.fields
+        ? Object.values(result.fields).join(" | ")
+        : "";
+      showContactMessage(
+        fieldErrors || result.error || "Có lỗi xảy ra.",
+        "error",
+      );
+      return;
+    }
 
-    // Simulate successful submission
+    // Also subscribe newsletter if checked
+    if (formData.newsletter && formData.email) {
+      fetch("/api/contact/newsletter/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: formData.email }),
+      }).catch(() => {});
+    }
+
     showContactMessage(
       "Cảm ơn bạn đã liên hệ! Chúng tôi sẽ phản hồi trong vòng 24 giờ.",
       "success",
     );
     form.reset();
-
-    // Reset character counter
-    document.getElementById("message-count").textContent = "0";
+    const mc = document.getElementById("message-count");
+    if (mc) mc.textContent = "0";
+    // Khôi phục email readonly sau khi reset
+    prefillContactForm();
+    // Refresh danh sách tin nhắn
+    setTimeout(loadMyMessages, 800);
   } catch (error) {
     console.error("Contact submission error:", error);
     showContactMessage("Có lỗi xảy ra. Vui lòng thử lại sau.", "error");
@@ -242,12 +304,19 @@ async function handleNewsletterSubmit(event) {
   submitBtn.disabled = true;
 
   try {
-    // Here you would make API call to subscribe to newsletter
-    // For now, simulate subscription
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-
+    const res = await fetch("/api/contact/newsletter/subscribe", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    const result = await res.json();
+    if (!res.ok) {
+      showNewsletterMessage(result.error || "Có lỗi xảy ra.", "error");
+      return;
+    }
     showNewsletterMessage(
-      "Đăng ký thành công! Cảm ơn bạn đã quan tâm đến AI Translator.",
+      result.message ||
+        "Đăng ký thành công! Cảm ơn bạn đã quan tâm đến AI Translator.",
       "success",
     );
     document.getElementById("newsletter-email").value = "";
@@ -311,6 +380,112 @@ function showMessage(message, type, className) {
       }
     }, 5000);
   }
+}
+
+// ─── My Messages ───────────────────────────────────────────────────────────
+async function loadMyMessages() {
+  const section = document.getElementById("my-messages-section");
+  const listEl = document.getElementById("my-messages-list");
+  if (!section || !listEl) return;
+
+  const token = localStorage.getItem("token");
+  if (!token) {
+    // Chưa đăng nhập → ẩn section
+    section.style.display = "none";
+    return;
+  }
+
+  section.style.display = "block";
+
+  try {
+    const res = await fetch("/api/contact/my-messages", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      section.style.display = "none";
+      return;
+    }
+    const d = await res.json();
+    const msgs = d.messages || [];
+
+    if (!msgs.length) {
+      listEl.innerHTML = `
+        <p style="color:var(--muted,#9aa4b2);text-align:center;padding:24px">
+          <i class="fas fa-inbox"></i> Bạn chưa gửi tin nhắn nào.
+        </p>`;
+      return;
+    }
+
+    const SUBJECT_LABELS = {
+      general: "Câu hỏi chung",
+      technical: "Hỗ trợ kỹ thuật",
+      billing: "Thanh toán",
+      partnership: "Hợp tác",
+      other: "Khác",
+    };
+    const STATUS_LABELS = {
+      unread: "Chờ xử lý",
+      read: "Đã xem",
+      replied: "Đã phản hồi",
+    };
+    const STATUS_COLORS = {
+      unread: "#ffc832",
+      read: "#00a8ff",
+      replied: "#00ffd1",
+    };
+
+    listEl.innerHTML = msgs
+      .map((m) => {
+        const statusColor = STATUS_COLORS[m.status] || "#9aa4b2";
+        const statusLabel = STATUS_LABELS[m.status] || m.status;
+        const subjectLabel = SUBJECT_LABELS[m.subject] || m.subject;
+        const dateStr = m.created_at
+          ? new Date(m.created_at).toLocaleString("vi-VN", {
+              dateStyle: "short",
+              timeStyle: "short",
+            })
+          : "";
+
+        const replyBlock = m.admin_reply
+          ? `
+        <div style="margin-top:12px;background:rgba(0,255,209,0.06);border-left:3px solid #00ffd1;
+                    border-radius:0 8px 8px 0;padding:12px 16px">
+          <div style="color:#00ffd1;font-size:0.78rem;font-weight:600;margin-bottom:6px">
+            <i class="fas fa-reply"></i> Phản hồi từ đội ngũ hỗ trợ
+            ${m.replied_at ? `<span style="color:#4a6a7a;font-weight:400;margin-left:8px">${new Date(m.replied_at).toLocaleString("vi-VN", { dateStyle: "short", timeStyle: "short" })}</span>` : ""}
+          </div>
+          <p style="margin:0;color:#cfe8f0;font-size:0.9rem;line-height:1.6;white-space:pre-wrap">${escHtml(m.admin_reply)}</p>
+        </div>`
+          : "";
+
+        return `
+        <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);
+                    border-radius:10px;padding:18px;margin-bottom:14px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+            <span style="font-weight:600;color:#e6eef3">${escHtml(subjectLabel)}</span>
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="color:${statusColor};font-size:0.8rem;font-weight:600">${statusLabel}</span>
+              <span style="color:#4a6a7a;font-size:0.78rem">${dateStr}</span>
+            </div>
+          </div>
+          <p style="margin:0;color:#9aa4b2;font-size:0.88rem;line-height:1.6;white-space:pre-wrap">${escHtml(m.message)}</p>
+          ${replyBlock}
+        </div>`;
+      })
+      .join("");
+  } catch (e) {
+    section.style.display = "none";
+  }
+}
+
+function escHtml(str) {
+  return String(str ?? "").replace(
+    /[&<>"']/g,
+    (m) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[
+        m
+      ],
+  );
 }
 
 // Add custom styles for contact page

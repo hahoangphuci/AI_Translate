@@ -2,16 +2,19 @@ version: "3.8"
 
 services:
   backend:
-    build: ./backend
+    build: ./api_base
     ports:
       - "5000:5000"
+    env_file:
+      - ./api_base/.env
     environment:
       - FLASK_ENV=development
+      - BACKEND_PORT=5000
       - DATABASE_URL=mysql+pymysql://root:rootpassword@db:3306/ai_translation
       - FRONTEND_URL=http://localhost
     volumes:
-      - ./backend/uploads:/app/uploads
-      - ./backend/downloads:/app/downloads
+      - ./api_base/utils/upload_temp:/app/utils/upload_temp
+      - ./api_base/utils/download:/app/utils/download
     depends_on:
       - db
     networks:
@@ -35,7 +38,7 @@ services:
       - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./backend/init_db.sql:/docker-entrypoint-initdb.d/init_db.sql
+      - ./api_base/init_db.sql:/docker-entrypoint-initdb.d/init_db.sql
     networks:
       - app-network
 

@@ -1,0 +1,16 @@
+{
+  "pro": {
+    "package_id": "pro",
+    "plan": "pro",
+    "name": "Pro",
+    "amount_vnd": 49000,
+    "token_amount": 120000
+  },
+  "promax": {
+    "package_id": "promax",
+    "plan": "promax",
+    "name": "ProMax",
+    "amount_vnd": 90000,
+    "token_amount": 300000
+  }
+}

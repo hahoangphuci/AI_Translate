@@ -1,0 +1,9 @@
+{
+  "custom_models": [],
+  "default_by_plan": {
+    "free": "google",
+    "pro": "gemini",
+    "promax": "gemini"
+  },
+  "updated_at": "2026-06-26T04:13:59Z"
+}

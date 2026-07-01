@@ -8,6 +8,7 @@ Hệ thống dịch văn bản và tài liệu sử dụng trí tuệ nhân tạ
 
 - Dịch tức thời với 100+ ngôn ngữ
 - Tự động phát hiện ngôn ngữ nguồn
+- Chọn 1 API dịch chung trong Cài đặt: Google Translate / DeepL / Gemini 2.5 Flash
 - Đếm ký tự (giới hạn 5000)
 - Hoán đổi ngôn ngữ nhanh
 - Sao chép/tải xuống kết quả
@@ -46,27 +47,129 @@ Hệ thống dịch văn bản và tài liệu sử dụng trí tuệ nhân tạ
 - **Frontend**: HTML5, CSS3, JavaScript (ES6+)
 - **Database**: MySQL
 - **Authentication**: JWT, Google OAuth 2.0
-- **AI Services**: OpenAI GPT, DeepL API
+- **AI Services**: Google Translate, DeepL API, Gemini 2.5 Flash
 - **Container**: Docker & Docker Compose
 - **Payment**: SePay.vn integration
 
-### PDF Pipeline (theo cấu hình khuyến nghị)
+### PDF Pipeline (bắt buộc để giữ layout)
 
-- Đọc PDF: `PyMuPDF`
-- Layout: `layoutparser`
-- OCR: `Tesseract` (`pytesseract`)
-- Dịch AI: `OpenAI API`
-- Render PDF: `reportlab` (tuỳ chọn, bật qua biến môi trường)
+1. PDF Analyzer
+
+- kiểm tra PDF có text hay scan
+- kiểm tra có bảng không
+- kiểm tra có nhiều cột không
+- kiểm tra có ảnh không
+
+2. Scan OCR (nếu là scan)
+
+- OCR trước để tạo searchable PDF
+
+3. PDF Cleaner
+
+- xoay trang đúng chiều (autorotate)
+- tăng chất lượng ảnh (enhance)
+- deskew nếu bị nghiêng
+- làm sạch layer lỗi bằng bản raster khi cần
+
+4. PDF -> DOCX Converter
+
+- ưu tiên `pdf2docx`
+
+5. DOCX Translation
+
+- giữ paragraph
+- giữ run/style
+- giữ bảng
+- giữ heading
+
+6. DOCX Layout Recovery
+
+- tự co font trong bảng khi cần
+- tự xuống dòng theo layout
+- sửa tràn bảng (relax row height)
+- sửa ảnh lệch (giới hạn theo khổ trang)
+
+7. DOCX -> PDF
+
+- export qua Word (docx2pdf) hoặc LibreOffice
+
+8. Quality Checker
+
+- kiểm tra mất chữ/bảng/reference
+
+PDF đã dịch.
 
 Biến môi trường liên quan:
 
 ```env
+# PDF -> DOCX converter: pdf2docx | word | adobe
+PDF_DOCX_CONVERTER=pdf2docx
+PDF2DOCX_DELETE_HYPHEN=0
+
+# DOCX -> PDF engine: auto | docx2pdf | libreoffice
+PDF_DOCX_EXPORT_ENGINE=auto
+
+# Keep intermediate DOCX files for debugging
+PDF_DOCX_KEEP_INTERMEDIATE=0
+
+# Layout/format recovery
+PDF_DOCX_LAYOUT_SYNC=1
+PDF_DOCX_PDF_FORMAT_SYNC=0
+PDF_DOCX_TABLE_SYNC=1
+PDF_DOCX_HEADER_FOOTER_SYNC=1
+PDF_DOCX_SANITIZE_MERGE_FRAGMENTS=0
+PDF_DOCX_FORCE_BODY_JUSTIFY=0
+PDF_DOCX_REGIONAL_MODE=auto
+# force: always mirror source layout | auto: mirror normal docs, allow academic regional logic | off: legacy normalize
+PDF_DOCX_PRESERVE_LAYOUT_MODE=force
+PDF_DOCX_SANITIZE_REPLACE_NBSP=1
+PDF_DOCX_SANITIZE_REPLACE_TABS=0
+PDF_DOCX_SANITIZE_STRIP_SOFT_HYPHEN=0
+PDF_DOCX_NORMALIZE_SUBSET_FONTS=1
+PDF_DOCX_FIX_SYMBOL_FONT_RUNS=1
+PDF_DOCX_TEXT_FONT_FALLBACK=Times New Roman
+
+# Strict mode: fail if scan OCR cannot create searchable PDF
+PDF_SCAN_OCR_STRICT=0
+
+# PDF cleanup controls
+PDF_CLEAN_NORMALIZE_ROTATION=1
+PDF_CLEAN_AUTOROTATE=1
+PDF_CLEAN_DESKEW=1
+PDF_CLEAN_ENHANCE=1
+PDF_CLEAN_RENDER_DPI=250
+
+# Translation guard for DOCX (skip URL/DOI/reference/formula/code)
+DOCX_TRANSLATION_GUARD=1
+
+# Optional post-fixes (off by default for generic PDF fidelity)
+DOCX_TARGETED_FIXES=0
+DOCX_DOMAIN_FIXUPS=0
+
+# Layout recovery for table cells
+DOCX_TABLE_SHRINK=0
+DOCX_TABLE_SHRINK_LEN=140
+DOCX_TABLE_SHRINK_MIN_PT=8
+
 # Ưu tiên OpenAI API cho dịch
 AI_PROVIDER=openai
 
-# Render engine cho PDF: pymupdf | reportlab
-PDF_RENDER_ENGINE=pymupdf
+# Engine xuất DOCX -> PDF: auto | docx2pdf | libreoffice
+PDF_DOCX_EXPORT_ENGINE=auto
 ```
+
+## 📚 Documentation / Tài liệu
+
+| Document | Web | Markdown |
+|----------|-----|----------|
+| Installation / Cài đặt | [/installation](http://127.0.0.1:5055/installation) | [docs/INSTALLATION_GUIDE.md](docs/INSTALLATION_GUIDE.md) |
+| System architecture / Kiến trúc | — | [docs/KIEN_TRUC_HE_THONG.md](docs/KIEN_TRUC_HE_THONG.md) |
+| User guide / Sử dụng Web | [/user-guide](http://127.0.0.1:5055/user-guide) | [docs/USER_GUIDE.md](docs/USER_GUIDE.md) |
+| SePay integration | — | [docs/SEPAY_INTEGRATION.md](docs/SEPAY_INTEGRATION.md) |
+| Database setup | — | [docs/DATABASE_SETUP.md](docs/DATABASE_SETUP.md) |
+| Document translation flow | — | [docs/DOCUMENT_TRANSLATION_FLOW.md](docs/DOCUMENT_TRANSLATION_FLOW.md) |
+
+Full index: [docs/README.md](docs/README.md)
 
 ## 🚀 Cài Đặt & Chạy
 
@@ -88,7 +191,7 @@ cd ai-translation-system
 
 ```bash
 # Backend
-cd backend
+cd api_base
 cp .env.example .env
 # Chỉnh sửa .env với API keys của bạn
 
@@ -107,11 +210,11 @@ docker-compose up --build
 
 ```bash
 # Backend
-cd backend
+cd api_base
 python -m venv venv
 venv\Scripts\activate  # Windows
 pip install -r requirements.txt
-python run.py
+python run_api.py
 
 # Frontend (mở terminal mới)
 cd frontend
@@ -133,7 +236,7 @@ OCR dùng `pytesseract` nhưng máy bạn cần cài thêm **Tesseract OCR** (bi
 - Cài Tesseract OCR
 - Sau khi cài, làm 1 trong 2 cách:
   - Thêm Tesseract vào `PATH` (mở terminal mới sau khi thêm PATH)
-  - Hoặc set biến trong `backend/.env`:
+  - Hoặc set biến trong `api_base/.env`:
 
 ```env
 # Ví dụ Windows
@@ -145,11 +248,12 @@ Nếu OCR báo thiếu ngôn ngữ `vie`, hãy đảm bảo language data tiến
 
 ## 📄 Cấu hình PDF (giữ định dạng)
 
-PDF rất khó “giữ nguyên định dạng gốc” tuyệt đối khi dịch (đặc biệt với bảng/form). Backend có một số biến môi trường để ưu tiên **giữ layout** và giảm lỗi “chồng chữ”.
+PDF rất khó “giữ nguyên định dạng gốc” tuyệt đối khi dịch (đặc biệt với bảng/form). Hệ thống dùng luồng DOCX (Analyzer → PDF → DOCX → dịch → khôi phục layout/định dạng → DOCX → PDF) để giảm lỗi chồng chữ và lệch bố cục.
 
-Chỉnh trong `backend/.env`:
+Chỉnh trong `api_base/.env`:
 
 ```env
+# (Chi ap dung cho pipeline IR)
 # Mặc định: dịch cả bảng (ưu tiên "dịch toàn bộ") và cố gắng fit text trong đúng ô
 # Values: skip | safe | force
 # - force: dịch nhiều nhất (có thể chữ nhỏ hơn trong ô hẹp)
@@ -182,7 +286,7 @@ PDF_FULL_PAGE_OVERLAY_ERASE_BEHIND=1
 
 ## 🔧 Cấu Hình API Keys
 
-Chỉnh sửa file `backend/.env`:
+Chỉnh sửa file `api_base/.env`:
 
 ```env
 SECRET_KEY=your-secret-key
@@ -192,7 +296,13 @@ GOOGLE_CLIENT_ID=your-google-client-id
 GOOGLE_CLIENT_SECRET=your-google-client-secret
 OPENAI_API_KEY=your-openai-api-key
 DEEPL_API_KEY=your-deepl-api-key
+GEMINI_API_KEY=your-gemini-api-key
+GEMINI_MODEL=gemini-2.5-flash
+TRANSLATION_PROVIDER_DEFAULT=google
 SEPAY_API_KEY=your-sepay-api-key
+# Optional: key used to verify SePay webhooks (defaults to SEPAY_API_KEY)
+SEPAY_WEBHOOK_API_KEY=your-sepay-webhook-api-key
+# Kept for backward-compatibility with older setups (not used by current code)
 SEPAY_SECRET=your-sepay-secret
 ```
 
@@ -225,8 +335,24 @@ SEPAY_SECRET=your-sepay-secret
 
 - **SePay.vn**: Cổng thanh toán Việt Nam
 - Hỗ trợ QR code payment
-- Webhook notifications
+- Webhook notifications (endpoint: `POST /api/payment/sepay/webhook`)
 - Transaction logging
+
+Webhook auth (SePay cấu hình kiểu "API Key"):
+
+- Header: `Authorization: Apikey <SEPAY_WEBHOOK_API_KEY>`
+
+Lưu ý về QR:
+
+- Hệ thống hiện tạo QR chuyển khoản chuẩn VietQR (chuyển khoản ngân hàng là giao dịch thật).
+- SePay đóng vai trò **tự động xác nhận** giao dịch (poll User API hoặc nhận webhooks).
+
+Tài liệu kỹ thuật (polling/sync, không cần webhook):
+
+- Xem [docs/SEPAY_INTEGRATION.md](docs/SEPAY_INTEGRATION.md) (EN + VI)
+- Xem [PAYMENT_POLLING_SYNC.md](PAYMENT_POLLING_SYNC.md) (chi tiết polling)
+- Nếu muốn QR hiển thị theo style SePay như trang `qr.sepay.vn`, cấu hình `SEPAY_QR_TEMPLATE_URL`:
+  - Ví dụ: `SEPAY_QR_TEMPLATE_URL=https://qr.sepay.vn/img?acc={account_number}&bank={bank_code}&amount={amount}&des={content}&template=compact`
 
 ## 🚀 Triển Khai Production
 
