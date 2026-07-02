@@ -1,8 +1,0 @@
-p57 '\uf02bKhachHang (Customer): từđăng ký, xem đơn hàng.'
-  '\uf02b' font='Symbol'
-  'KhachHang ' font='Times New Roman'
-  '(Customer): từđăng ký, xem đơn hàng.' font='Times New Roman'
-p62 '\uf02bThanhToan (Payment): xửlý thanh toán (có thểcó subclass như OnlinePayment, COD).'
-  '\uf02b' font='Symbol'
-  'ThanhToan ' font='Times New Roman'
-  '(Payment): xửlý thanh toán (có thểcó subclass như OnlinePayment, COD).' font='Times New Roman'

@@ -1,8 +1,0 @@
-p46 '\uf02b\tThanhToan (Thanh toán online / COD).'
-  '\uf02b\tThanhToan (Thanh toán online / COD).' font='Symbol'
-p57 '\uf02bKhachHang (Customer): từđăng ký, xem đơn hàng.'
-  '\uf02bKhachHang ' font='Symbol'
-  '(Customer): từđăng ký, xem đơn hàng.' font='Symbol'
-p62 '\uf02bThanhToan (Payment): xửlý thanh toán (có thểcó subclass như OnlinePayment, COD).'
-  '\uf02bThanhToan ' font='Symbol'
-  '(Payment): xửlý thanh toán (có thểcó subclass như OnlinePayment, COD).' font='Symbol'
