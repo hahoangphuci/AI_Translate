@@ -2574,6 +2574,12 @@ class TranslationService:
         def _worker(job_id, file_path, target_lang, ocr_images, ocr_langs, ocr_mode, bilingual_mode, bilingual_delimiter, translation_provider):
             com_uninit = None
             try:
+                try:
+                    from deps_bootstrap import ensure_packages_on_path
+                    ensure_packages_on_path()
+                except Exception:
+                    pass
+
                 self.set_request_translation_provider(translation_provider)
 
                 if os.name == 'nt':

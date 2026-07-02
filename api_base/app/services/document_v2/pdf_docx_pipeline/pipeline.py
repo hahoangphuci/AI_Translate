@@ -811,6 +811,43 @@ def _inject_formula_clips(pdf_path: str, docx_path: str, *, clip_res: float = 3.
     return injected
 
 
+def _load_pdf2docx_converter():
+    """Import pdf2docx.Converter with deploy/python_packages path setup."""
+    import sys
+
+    api_base = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
+    if api_base not in sys.path:
+        sys.path.insert(0, api_base)
+
+    from deps_bootstrap import (
+        bootstrap_runtime_dependencies,
+        check_pdf2docx_converter,
+        ensure_packages_on_path,
+    )
+
+    ensure_packages_on_path()
+    probe = check_pdf2docx_converter()
+    if not probe["import_ok"]:
+        bootstrap_runtime_dependencies(install_if_missing=True)
+        probe = check_pdf2docx_converter()
+
+    if not probe["import_ok"]:
+        parts = [probe.get("error") or "pdf2docx import failed"]
+        if probe.get("fitz_error"):
+            parts.append(f"PyMuPDF: {probe['fitz_error']}")
+        if probe.get("docx_error"):
+            parts.append(f"python-docx: {probe['docx_error']}")
+        raise RuntimeError(
+            "PDF -> DOCX conversion unavailable. "
+            + "; ".join(parts)
+            + ". Install: pip install pdf2docx PyMuPDF python-docx"
+        )
+
+    from pdf2docx import Converter
+
+    return Converter
+
+
 def _convert_pdf_to_docx(
     pdf_path: str,
     output_docx: str,
@@ -820,15 +857,7 @@ def _convert_pdf_to_docx(
 ) -> None:
     engine = (engine or "pdf2docx").strip().lower()
     if engine in ("pdf2docx", "library", "lib"):
-        try:
-            from deps_bootstrap import ensure_packages_on_path, has_pdf2docx, bootstrap_runtime_dependencies
-
-            ensure_packages_on_path()
-            if not has_pdf2docx():
-                bootstrap_runtime_dependencies(install_if_missing=True)
-            from pdf2docx import Converter
-        except Exception as exc:
-            raise RuntimeError("pdf2docx is required for PDF -> DOCX conversion. Install: pip install pdf2docx") from exc
+        Converter = _load_pdf2docx_converter()
 
         cv = Converter(pdf_path)
         try:

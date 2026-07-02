@@ -62,13 +62,21 @@ def public_legal_content(slug):
 @public_bp.route("/deps", methods=["GET"])
 def public_deps():
     """Runtime dependency probe (pdf2docx for PDF pipeline)."""
-    from deps_bootstrap import bootstrap_runtime_dependencies, has_pdf2docx, packages_dir
+    from deps_bootstrap import bootstrap_runtime_dependencies, check_pdf2docx_converter, packages_dir
 
     status = bootstrap_runtime_dependencies(install_if_missing=False)
+    probe = check_pdf2docx_converter()
     return jsonify(
         {
-            "pdf2docx": has_pdf2docx(),
+            "pdf2docx": probe["import_ok"],
+            "pdf2docx_spec": probe["spec"],
+            "converter_import_ok": probe["import_ok"],
+            "converter_error": probe.get("error"),
+            "fitz_ok": probe.get("fitz_ok"),
+            "fitz_error": probe.get("fitz_error"),
+            "fitz_version": probe.get("fitz_version"),
             "packages_dir": packages_dir(),
+            "packages_dirs": probe.get("packages_dirs"),
             "packages_dir_exists": status.get("packages_dir_exists"),
         }
     ), 200

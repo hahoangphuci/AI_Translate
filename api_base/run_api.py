@@ -90,12 +90,16 @@ if 'mysql+pymysql://' in _db_uri and importlib.util.find_spec('pymysql') is None
     raise SystemExit(1)
 
 if not has_pdf2docx():
-    print("\n[WARN] pdf2docx is not installed — PDF -> DOCX translation will fail.")
-    print("Install with: python -m pip install pdf2docx==0.5.7")
+    print("\n[WARN] pdf2docx is not importable — PDF -> DOCX translation will fail.")
+    print("Install with: python -m pip install pdf2docx==0.5.7 PyMuPDF python-docx")
+    if _deps_status.get("converter_error"):
+        print(f"[WARN] converter import: {_deps_status['converter_error']}")
+    if _deps_status.get("fitz_error"):
+        print(f"[WARN] PyMuPDF import: {_deps_status['fitz_error']}")
     if _deps_status.get("install_error"):
         print(f"[WARN] Azure auto-install failed: {_deps_status['install_error']}")
 else:
-    print("[deps] pdf2docx OK")
+    print(f"[deps] pdf2docx OK (PyMuPDF {_deps_status.get('fitz_version') or 'unknown'})")
 
 if app.config.get('DB_SQLITE_FALLBACK_USED'):
     print(f"[db] Active database: {mask_db_uri(app.config.get('SQLALCHEMY_DATABASE_URI') or '')}")
