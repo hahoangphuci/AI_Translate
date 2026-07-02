@@ -71,7 +71,7 @@ jobs:
             -x "*/.venv/*" \
             -x "frontend/node_modules/*"
 
-      - name: Clear Kudu deployment locks
+      - name: Clear Kudu deployment locks and configure app
         run: |
           RG=$(az webapp list --query "[?name=='aitranslate'].resourceGroup | [0]" -o tsv)
           if [ -z "$RG" ]; then
@@ -79,7 +79,15 @@ jobs:
             exit 1
           fi
           echo "RESOURCE_GROUP=$RG" >> "$GITHUB_ENV"
+          HOST=$(az webapp list --query "[?name=='aitranslate'].defaultHostName | [0]" -o tsv)
+          PUBLISH_URL=$(az webapp deployment list-publishing-profiles \
+            --resource-group "$RG" \
+            --name aitranslate \
+            --query "[?publishMethod=='ZipDeploy'].publishUrl | [0]" -o tsv)
+          SCM="https://${PUBLISH_URL}"
+          echo "SCM_URL=$SCM" >> "$GITHUB_ENV"
           echo "Resource group: $RG"
+          echo "SCM URL: $SCM"
 
           USER=$(az webapp deployment list-publishing-credentials \
             --resource-group "$RG" \
@@ -90,19 +98,30 @@ jobs:
             --name aitranslate \
             --query publishingPassword -o tsv)
 
-          SCM="https://aitranslate.scm.azurewebsites.net"
           curl -sf -u "$USER:$PASS" -H "Content-Type: application/json" \
             -d '{"command":"rm -f /home/site/locks/*.lock && echo locks-cleared","dir":"/home"}' \
             "$SCM/api/command" || echo "Lock cleanup skipped (non-fatal)"
 
+          az webapp config appsettings delete \
+            --resource-group "$RG" \
+            --name aitranslate \
+            --setting-names WEBSITE_RUN_FROM_PACKAGE \
+            --output none 2>/dev/null || true
+
           az webapp config appsettings set \
             --resource-group "$RG" \
             --name aitranslate \
-            --settings WEBSITE_RUN_FROM_PACKAGE=1 SCM_DO_BUILD_DURING_DEPLOYMENT=true \
+            --settings SCM_DO_BUILD_DURING_DEPLOYMENT=true BACKEND_PORT=8000 WEBSITES_PORT=8000 \
             --output none
 
-          echo "Waiting 120s for Kudu to release any stale deployment state..."
-          sleep 120
+          az webapp config set \
+            --resource-group "$RG" \
+            --name aitranslate \
+            --startup-file "python api_base/run_api.py" \
+            --output none
+
+          echo "Waiting 60s for Kudu to release any stale deployment state..."
+          sleep 60
 
       - name: Deploy to Azure Web App
         run: |
@@ -114,6 +133,7 @@ jobs:
               --name aitranslate \
               --src-path deploy.zip \
               --type zip \
+              --enable-remote-build true \
               --clean true \
               --restart true \
               --async false
@@ -134,7 +154,7 @@ jobs:
                 --query publishingPassword -o tsv)
               curl -sf -u "$USER:$PASS" -H "Content-Type: application/json" \
                 -d '{"command":"rm -f /home/site/locks/*.lock && echo locks-cleared","dir":"/home"}' \
-                "https://aitranslate.scm.azurewebsites.net/api/command" || true
+                "$SCM_URL/api/command" || true
               sleep 180
             fi
           done
