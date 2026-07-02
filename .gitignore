@@ -44,3 +44,53 @@ Thumbs.db
 __pycache__/
 *.pyc
 **/.gradle/
+.env
+**/.env
+*.env
+
+.venv/
+venv/
+env/
+**/.venv/
+
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+
+**/.gradle/
+**/build/
+node_modules/
+
+.vscode/
+.idea/
+# Python environments
+antenv/
+.venv/
+venv/
+env/
+**/.venv/
+
+# Python cache
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+
+# Frontend dependencies
+frontend/node_modules/
+node_modules/
+**/node_modules/
+
+# Local database
+instance/*.db
+instance/*.sqlite
+instance/*.sqlite3
+
+# Secrets
+.env
+**/.env
+*.env
+
+# Deployment archives
+*.zip
