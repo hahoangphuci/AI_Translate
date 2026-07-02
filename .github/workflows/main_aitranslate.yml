@@ -1,122 +1,109 @@
-# Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
-# More GitHub Actions for Azure: https://github.com/Azure/actions
-# More info on Python, GitHub Actions, and Azure App Service: https://aka.ms/python-webapps-actions
-
-name: Build and deploy Python app to Azure Web App - aitranslate
-
-on:
-  push:
-    branches:
-      - main
-  workflow_dispatch:
-
-# Prevent overlapping deploys to the same App Service (common cause of HTTP 409).
-concurrency:
-  group: aitranslate-production
-  cancel-in-progress: true
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read #This is required for actions/checkout
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python version
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      # 🛠️ Local Build Section (Optional)
-      # The following section in your workflow is designed to catch build issues early on the client side, before deployment. This can be helpful for debugging and validation. However, if this step significantly increases deployment time and early detection is not critical for your workflow, you may remove this section to streamline the deployment process.
-      - name: Create and Start virtual environment and Install dependencies
-        run: |
-          python -m venv antenv
-          source antenv/bin/activate
-          pip install -r requirements.txt
-                
-      # By default, when you enable GitHub CI/CD integration through the Azure portal, the platform automatically sets the SCM_DO_BUILD_DURING_DEPLOYMENT application setting to true. This triggers the use of Oryx, a build engine that handles application compilation and dependency installation (e.g., pip install) directly on the platform during deployment. Hence, we exclude the antenv virtual environment directory from the deployment artifact to reduce the payload size. 
-      - name: Upload artifact for deployment jobs
-        uses: actions/upload-artifact@v4
-        with:
-          name: python-app
-          path: |
-            .
-            !antenv/
-
-      # 🚫 Opting Out of Oryx Build
-      # If you prefer to disable the Oryx build process during deployment, follow these steps:
-      # 1. Remove the SCM_DO_BUILD_DURING_DEPLOYMENT app setting from your Azure App Service Environment variables.
-      # 2. Refer to sample workflows for alternative deployment strategies: https://github.com/Azure/actions-workflow-samples/tree/master/AppService
-      
-
-  deploy:
-    runs-on: ubuntu-latest
-    needs: build
-    permissions:
-      id-token: write #This is required for requesting the JWT
-      contents: read #This is required for actions/checkout
-
-    steps:
-      - name: Download artifact from build job
-        uses: actions/download-artifact@v4
-        with:
-          name: python-app
-      
-      - name: Login to Azure
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_771C990487C54F5FA2FE527C91F30417 }}
-          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_B0113AD5896E4EF8B2B940E57D4F8B52 }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_54E7EB8FDF8F4DDA935EAFF754E02423 }}
-
-      - name: Create deployment zip
-        run: |
-          zip -r deploy.zip . \
-            -x "antenv/*" \
-            -x ".git/*" \
-            -x "app_web_view/*" \
-            -x "frontend/node_modules/*" \
-            -x "**/__pycache__/*" \
-            -x "**/.venv/*"
-
-      - name: Stop App Service (clear Kudu locks from failed deploys)
-        run: |
-          RG=$(az webapp list --query "[?name=='aitranslate'].resourceGroup | [0]" -o tsv)
-          if [ -z "$RG" ]; then
-            echo "Could not find resource group for app 'aitranslate'"
-            exit 1
-          fi
-          echo "RESOURCE_GROUP=$RG" >> "$GITHUB_ENV"
-          az webapp stop --name aitranslate --resource-group "$RG"
-          sleep 45
-
-      - name: Deploy to Azure Web App (retry on 409)
-        run: |
-          set -e
-          for attempt in 1 2 3; do
-            echo "Deploy attempt $attempt/3..."
-            if az webapp deploy \
-              --resource-group "$RESOURCE_GROUP" \
-              --name aitranslate \
-              --src-path deploy.zip \
-              --type zip \
-              --clean true \
-              --async false; then
-              echo "Deploy succeeded on attempt $attempt"
-              exit 0
-            fi
-            if [ "$attempt" -lt 3 ]; then
-              echo "Deploy failed (often HTTP 409). Waiting 90s before retry..."
-              sleep 90
-            fi
-          done
-          echo "All deploy attempts failed"
-          exit 1
-
-      - name: Start App Service
-        if: always()
-        run: az webapp start --name aitranslate --resource-group "$RESOURCE_GROUP"
-
+# Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
+# More GitHub Actions for Azure: https://github.com/Azure/actions
+# More info on Python, GitHub Actions, and Azure App Service: https://aka.ms/python-webapps-actions
+
+name: Build and deploy Python app to Azure Web App - aitranslate
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: aitranslate-production
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python version
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Create and Start virtual environment and Install dependencies
+        run: |
+          python -m venv antenv
+          source antenv/bin/activate
+          pip install -r requirements.txt
+
+      - name: Upload artifact for deployment jobs
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-app
+          path: |
+            .
+            !antenv/
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Download artifact from build job
+        uses: actions/download-artifact@v4
+        with:
+          name: python-app
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_771C990487C54F5FA2FE527C91F30417 }}
+          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_B0113AD5896E4EF8B2B940E57D4F8B52 }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_54E7EB8FDF8F4DDA935EAFF754E02423 }}
+
+      - name: Resolve Azure resource group
+        run: |
+          RG=$(az webapp show --name aitranslate --query resourceGroup -o tsv)
+          if [ -z "$RG" ]; then
+            echo "Could not find resource group for app 'aitranslate'"
+            exit 1
+          fi
+          echo "RESOURCE_GROUP=$RG" >> "$GITHUB_ENV"
+          echo "Using resource group: $RG"
+
+      - name: Create deployment zip
+        run: >
+          zip -r deploy.zip .
+          -x "antenv/*"
+          -x ".git/*"
+          -x "app_web_view/*"
+          -x "frontend/node_modules/*"
+          -x "*__pycache__/*"
+          -x "*/.venv/*"
+
+      - name: Deploy to Azure Web App (retry on 409)
+        run: |
+          set +e
+          for attempt in 1 2 3; do
+            echo "Deploy attempt $attempt/3..."
+            az webapp deploy \
+              --resource-group "$RESOURCE_GROUP" \
+              --name aitranslate \
+              --src-path deploy.zip \
+              --type zip \
+              --clean true \
+              --restart true \
+              --async false
+            status=$?
+            if [ "$status" -eq 0 ]; then
+              echo "Deploy succeeded on attempt $attempt"
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "Deploy failed (exit $status). Waiting 90s before retry..."
+              sleep 90
+            fi
+          done
+          echo "All deploy attempts failed"
+          exit 1
