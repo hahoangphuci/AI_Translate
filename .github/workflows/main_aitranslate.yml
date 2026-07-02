@@ -84,7 +84,7 @@ jobs:
             --resource-group "$RG" \
             --name aitranslate \
             --query "[?publishMethod=='ZipDeploy'].publishUrl | [0]" -o tsv)
-          SCM="https://${PUBLISH_URL}"
+          SCM="https://${PUBLISH_URL%%:*}"
           echo "SCM_URL=$SCM" >> "$GITHUB_ENV"
           echo "Resource group: $RG"
           echo "SCM URL: $SCM"
@@ -124,39 +124,7 @@ jobs:
           sleep 60
 
       - name: Deploy to Azure Web App
-        run: |
-          set +e
-          for attempt in 1 2; do
-            echo "Deploy attempt $attempt/2..."
-            az webapp deploy \
-              --resource-group "$RESOURCE_GROUP" \
-              --name aitranslate \
-              --src-path deploy.zip \
-              --type zip \
-              --enable-remote-build true \
-              --clean true \
-              --restart true \
-              --async false
-            status=$?
-            if [ "$status" -eq 0 ]; then
-              echo "Deploy succeeded on attempt $attempt"
-              exit 0
-            fi
-            if [ "$attempt" -lt 2 ]; then
-              echo "Deploy failed (exit $status). Clearing locks and waiting 180s..."
-              USER=$(az webapp deployment list-publishing-credentials \
-                --resource-group "$RESOURCE_GROUP" \
-                --name aitranslate \
-                --query publishingUserName -o tsv)
-              PASS=$(az webapp deployment list-publishing-credentials \
-                --resource-group "$RESOURCE_GROUP" \
-                --name aitranslate \
-                --query publishingPassword -o tsv)
-              curl -sf -u "$USER:$PASS" -H "Content-Type: application/json" \
-                -d '{"command":"rm -f /home/site/locks/*.lock && echo locks-cleared","dir":"/home"}' \
-                "$SCM_URL/api/command" || true
-              sleep 180
-            fi
-          done
-          echo "Deploy failed after 2 attempts"
-          exit 1
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: aitranslate
+          package: deploy.zip
