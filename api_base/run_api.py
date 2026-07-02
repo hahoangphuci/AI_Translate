@@ -35,6 +35,17 @@ _env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env')
 _override = (os.getenv('DOTENV_OVERRIDE') or '').strip().lower() in ('1', 'true', 'yes', 'on')
 load_dotenv(_env_path, override=_override)
 
+# Azure: dependencies installed by CI into repo-root/.python_packages
+_azure_pkg_dir = os.path.abspath(
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '.python_packages')
+)
+if os.path.isdir(_azure_pkg_dir) and _azure_pkg_dir not in sys.path:
+    sys.path.insert(0, _azure_pkg_dir)
+
+# Azure App Service exposes WEBSITES_PORT; reuse for Flask when BACKEND_PORT unset.
+if not os.getenv('BACKEND_PORT') and os.getenv('WEBSITES_PORT'):
+    os.environ['BACKEND_PORT'] = os.environ['WEBSITES_PORT']
+
 from flask import Flask, send_from_directory, jsonify
 from flask_cors import CORS
 from app.routers.auth import auth_bp
@@ -77,11 +88,10 @@ if 'mysql+pymysql://' in _db_uri and importlib.util.find_spec('pymysql') is None
     raise SystemExit(1)
 
 if importlib.util.find_spec('pdf2docx') is None:
-    print("\n[ERROR] Missing dependency: 'pdf2docx'.")
-    print("PDF -> DOCX translation requires pdf2docx.")
-    print("\nFix (run in the SAME interpreter you're using to start the app):")
-    print("  python -m pip install pdf2docx==0.5.7")
-    raise SystemExit(1)
+    print("\n[WARN] pdf2docx is not installed — PDF -> DOCX translation will fail.")
+    print("Install with: python -m pip install pdf2docx==0.5.7")
+else:
+    print("[deps] pdf2docx OK")
 
 if app.config.get('DB_SQLITE_FALLBACK_USED'):
     print(f"[db] Active database: {mask_db_uri(app.config.get('SQLALCHEMY_DATABASE_URI') or '')}")
