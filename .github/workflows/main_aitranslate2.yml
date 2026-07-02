@@ -26,15 +26,18 @@ jobs:
       - name: Install dependencies into python_packages (Linux wheels for Azure)
         run: |
           python -m pip install --upgrade pip
-          pip install --target python_packages "opencv-python-headless==4.12.0.88"
-          pip install --target python_packages -r api_base/requirements.txt
+          # pdf2docx declares opencv-python (GUI) — skip it; use headless only for Azure
+          grep -v '^pdf2docx' api_base/requirements.txt > /tmp/requirements_no_pdf2docx.txt
+          pip install --target python_packages -r /tmp/requirements_no_pdf2docx.txt
+          pip install --target python_packages pdf2docx==0.5.7 --no-deps
           pip install --target python_packages --force-reinstall --no-deps "opencv-python-headless==4.12.0.88"
-          PYTHONPATH=python_packages python -c "import cv2; import fitz; from pdf2docx import Converter; print('pdf2docx OK', cv2.__version__, fitz.VersionBind)"
-          test -d python_packages/pdf2docx || (echo "pdf2docx folder missing in artifact" && exit 1)
-          test -d python_packages/cv2 || (echo "cv2 missing in artifact" && exit 1)
+          rm -rf python_packages/opencv_python-[0-9]*.dist-info python_packages/opencv_python.libs 2>/dev/null || true
           if compgen -G "python_packages/opencv_python-[0-9]*.dist-info" > /dev/null; then
             echo "ERROR: opencv-python (GUI) must not be deployed" && exit 1
           fi
+          PYTHONPATH=python_packages python -c "import cv2; import fitz; from pdf2docx import Converter; print('pdf2docx OK', cv2.__version__, fitz.VersionBind)"
+          test -d python_packages/pdf2docx || (echo "pdf2docx folder missing in artifact" && exit 1)
+          test -d python_packages/cv2 || (echo "cv2 missing in artifact" && exit 1)
 
       - name: Verify pdf2docx imports on slim Linux (Azure-like, no libxcb)
         run: |
