@@ -106,8 +106,23 @@ jobs:
               exit 1
             fi
             echo "Resource group: $RG"
+            PLAN_ID=$(az webapp show --name "$APP" --resource-group "$RG" --query "serverFarmId" -o tsv)
+            SKU=$(az appservice plan show --ids "$PLAN_ID" --query "{tier:sku.tier,name:sku.name}" -o tsv 2>/dev/null || echo "unknown")
+            echo "App Service plan: $SKU"
             STATE=$(az webapp show --name "$APP" --resource-group "$RG" --query "state" -o tsv)
             echo "Current state: $STATE"
+            if [ "$STATE" = "QuotaExceeded" ]; then
+              echo "::error::QuotaExceeded — App Service plan has no remaining quota."
+              echo "Common causes:"
+              echo "  - Free (F1) tier: daily CPU quota (~60 min/day) used up — wait until UTC midnight reset"
+              echo "  - Subscription spending limit or trial credits exhausted"
+              echo "  - Shared plan limits reached"
+              echo "Fix in Azure Portal:"
+              echo "  1) App Service plan (aitranslate_group) -> Scale up -> Basic B1 or higher"
+              echo "  2) Or wait for quota reset, then Start app manually"
+              echo "  3) Cost Management -> check subscription balance / spending limit"
+              exit 1
+            fi
             if [ "$STATE" != "Running" ]; then
               echo "Starting $APP..."
               az webapp start --name "$APP" --resource-group "$RG"
@@ -118,11 +133,17 @@ jobs:
                 if [ "$STATE" = "Running" ]; then
                   break
                 fi
+                if [ "$STATE" = "QuotaExceeded" ]; then
+                  echo "::error::Start failed: QuotaExceeded. Upgrade App Service plan or wait for quota reset."
+                  exit 1
+                fi
               done
             fi
             if [ "$STATE" != "Running" ]; then
               echo "::error::App $APP is still not Running (state=$STATE)."
-              echo "Open Azure Portal -> App Service '$APP' -> Overview -> Start, then Re-run workflow."
+              if [ "$STATE" = "Stopped" ]; then
+                echo "Open Azure Portal -> App Service '$APP' -> Overview -> Start, then Re-run workflow."
+              fi
               exit 1
             fi
             echo "App is Running — proceeding to deploy."
