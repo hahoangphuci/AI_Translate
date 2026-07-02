@@ -64,7 +64,7 @@ def public_deps():
     """Runtime dependency probe (pdf2docx for PDF pipeline)."""
     from deps_bootstrap import bootstrap_runtime_dependencies, check_pdf2docx_converter, packages_dir
 
-    status = bootstrap_runtime_dependencies(install_if_missing=False)
+    status = bootstrap_runtime_dependencies(install_if_missing=False, probe_import=True)
     probe = check_pdf2docx_converter()
     return jsonify(
         {

@@ -63,6 +63,11 @@ def ensure_packages_on_path() -> str:
     return primary
 
 
+def has_pdf2docx_spec() -> bool:
+    ensure_packages_on_path()
+    return importlib.util.find_spec("pdf2docx") is not None
+
+
 def check_pdf2docx_converter() -> dict:
     """Probe pdf2docx with a real import (find_spec alone is not enough on Azure)."""
     ensure_packages_on_path()
@@ -108,18 +113,33 @@ def has_pdf2docx() -> bool:
     return check_pdf2docx_converter()["import_ok"]
 
 
-def bootstrap_runtime_dependencies(*, install_if_missing: bool = True) -> dict:
-    """Load python_packages from deploy artifact; pip-install on Azure if still missing."""
+def bootstrap_runtime_dependencies(
+    *,
+    install_if_missing: bool = True,
+    probe_import: bool = False,
+) -> dict:
+    """Load python_packages from deploy artifact.
+
+    Startup must stay fast: use probe_import=False (find_spec only).
+    Full Converter import is deferred to PDF jobs and /api/public/deps.
+    """
     root = repo_root()
     pkg = ensure_packages_on_path()
-    probe = check_pdf2docx_converter()
+
+    if probe_import:
+        probe = check_pdf2docx_converter()
+        pdf2docx_ok = probe["import_ok"]
+    else:
+        spec_ok = has_pdf2docx_spec()
+        probe = {"spec": spec_ok, "import_ok": spec_ok}
+        pdf2docx_ok = spec_ok
 
     status = {
         "packages_dir": pkg,
         "packages_dir_exists": os.path.isdir(pkg),
-        "pdf2docx": probe["import_ok"],
-        "pdf2docx_spec": probe["spec"],
-        "converter_import_ok": probe["import_ok"],
+        "pdf2docx": pdf2docx_ok,
+        "pdf2docx_spec": probe.get("spec", pdf2docx_ok),
+        "converter_import_ok": probe.get("import_ok"),
         "converter_error": probe.get("error"),
         "fitz_ok": probe.get("fitz_ok"),
         "fitz_error": probe.get("fitz_error"),
@@ -127,7 +147,7 @@ def bootstrap_runtime_dependencies(*, install_if_missing: bool = True) -> dict:
         "installed_now": False,
     }
 
-    if status["pdf2docx"] or not install_if_missing:
+    if pdf2docx_ok or not install_if_missing:
         return status
 
     on_azure = bool(os.getenv("WEBSITE_SITE_NAME") or os.getenv("WEBSITES_PORT"))
@@ -164,6 +184,7 @@ def bootstrap_runtime_dependencies(*, install_if_missing: bool = True) -> dict:
         ensure_packages_on_path()
         probe = check_pdf2docx_converter()
         status["pdf2docx"] = probe["import_ok"]
+        status["pdf2docx_spec"] = probe["spec"]
         status["converter_import_ok"] = probe["import_ok"]
         status["converter_error"] = probe.get("error")
         status["fitz_ok"] = probe.get("fitz_ok")

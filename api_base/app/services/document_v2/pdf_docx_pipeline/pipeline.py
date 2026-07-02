@@ -820,7 +820,6 @@ def _load_pdf2docx_converter():
         sys.path.insert(0, api_base)
 
     from deps_bootstrap import (
-        bootstrap_runtime_dependencies,
         check_pdf2docx_converter,
         ensure_packages_on_path,
     )
@@ -828,18 +827,10 @@ def _load_pdf2docx_converter():
     ensure_packages_on_path()
     probe = check_pdf2docx_converter()
     if not probe["import_ok"]:
-        bootstrap_runtime_dependencies(install_if_missing=True)
-        probe = check_pdf2docx_converter()
-
-    if not probe["import_ok"]:
-        parts = [probe.get("error") or "pdf2docx import failed"]
-        if probe.get("fitz_error"):
-            parts.append(f"PyMuPDF: {probe['fitz_error']}")
-        if probe.get("docx_error"):
-            parts.append(f"python-docx: {probe['docx_error']}")
         raise RuntimeError(
             "PDF -> DOCX conversion unavailable. "
-            + "; ".join(parts)
+            + (probe.get("error") or "pdf2docx import failed")
+            + (f"; PyMuPDF: {probe['fitz_error']}" if probe.get("fitz_error") else "")
             + ". Install: pip install pdf2docx PyMuPDF python-docx"
         )
 

@@ -39,10 +39,10 @@ _api_dir = os.path.dirname(os.path.abspath(__file__))
 if _api_dir not in sys.path:
     sys.path.insert(0, _api_dir)
 
-from deps_bootstrap import bootstrap_runtime_dependencies, ensure_packages_on_path, has_pdf2docx
+from deps_bootstrap import bootstrap_runtime_dependencies, ensure_packages_on_path, has_pdf2docx_spec
 
 ensure_packages_on_path()
-_deps_status = bootstrap_runtime_dependencies(install_if_missing=True)
+_deps_status = bootstrap_runtime_dependencies(install_if_missing=False, probe_import=False)
 
 # Azure App Service exposes WEBSITES_PORT; reuse for Flask when BACKEND_PORT unset.
 if not os.getenv('BACKEND_PORT') and os.getenv('WEBSITES_PORT'):
@@ -89,17 +89,13 @@ if 'mysql+pymysql://' in _db_uri and importlib.util.find_spec('pymysql') is None
     print("  # or let the app use SQLite when MySQL/XAMPP is down (default fallback)")
     raise SystemExit(1)
 
-if not has_pdf2docx():
-    print("\n[WARN] pdf2docx is not importable — PDF -> DOCX translation will fail.")
+if not _deps_status.get("pdf2docx_spec") and not _deps_status.get("packages_dir_exists"):
+    print("\n[WARN] python_packages not found — PDF -> DOCX translation will fail.")
     print("Install with: python -m pip install pdf2docx==0.5.7 PyMuPDF python-docx")
-    if _deps_status.get("converter_error"):
-        print(f"[WARN] converter import: {_deps_status['converter_error']}")
-    if _deps_status.get("fitz_error"):
-        print(f"[WARN] PyMuPDF import: {_deps_status['fitz_error']}")
-    if _deps_status.get("install_error"):
-        print(f"[WARN] Azure auto-install failed: {_deps_status['install_error']}")
+elif not _deps_status.get("pdf2docx_spec"):
+    print("\n[WARN] pdf2docx package not on PYTHONPATH — PDF -> DOCX may fail.")
 else:
-    print(f"[deps] pdf2docx OK (PyMuPDF {_deps_status.get('fitz_version') or 'unknown'})")
+    print("[deps] pdf2docx package present (full import checked when translating PDF)")
 
 if app.config.get('DB_SQLITE_FALLBACK_USED'):
     print(f"[db] Active database: {mask_db_uri(app.config.get('SQLALCHEMY_DATABASE_URI') or '')}")
