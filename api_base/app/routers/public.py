@@ -59,6 +59,17 @@ def public_legal_content(slug):
     return jsonify(meta), 200
 
 
+@public_bp.route("/health", methods=["GET"])
+def public_health():
+    """Lightweight liveness probe (no DB)."""
+    return jsonify(
+        {
+            "status": "ok",
+            "azure": bool(os.getenv("WEBSITE_SITE_NAME") or os.getenv("WEBSITES_PORT")),
+        }
+    ), 200
+
+
 @public_bp.route("/deps", methods=["GET"])
 def public_deps():
     """Runtime dependency probe (pdf2docx for PDF pipeline)."""

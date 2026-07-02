@@ -35,6 +35,9 @@ _env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env')
 _override = (os.getenv('DOTENV_OVERRIDE') or '').strip().lower() in ('1', 'true', 'yes', 'on')
 load_dotenv(_env_path, override=_override)
 
+print(f"[boot] cwd={os.getcwd()} python={sys.executable}", flush=True)
+print(f"[boot] azure={bool(os.getenv('WEBSITE_SITE_NAME') or os.getenv('WEBSITES_PORT'))}", flush=True)
+
 _api_dir = os.path.dirname(os.path.abspath(__file__))
 if _api_dir not in sys.path:
     sys.path.insert(0, _api_dir)
@@ -80,17 +83,16 @@ app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-pro
 app.config.from_object('app.config.DevelopmentConfig')
 
 
-from app.db_bootstrap import mask_db_uri
+from app.db_bootstrap import mask_db_uri, default_sqlite_uri, sqlite_engine_options
 
 # Preflight: if still on MySQL after bootstrap, ensure PyMySQL is installed.
 _db_uri = (app.config.get('SQLALCHEMY_DATABASE_URI') or '').lower()
 if 'mysql+pymysql://' in _db_uri and importlib.util.find_spec('pymysql') is None:
-    print("\n[ERROR] Missing dependency: 'pymysql' (PyMySQL).")
-    print("Your DATABASE_URL uses 'mysql+pymysql://', but PyMySQL is not installed.")
-    print("\nFix (run in the SAME interpreter you're using to start the app):")
-    print("  python -m pip install PyMySQL")
-    print("  # or let the app use SQLite when MySQL/XAMPP is down (default fallback)")
-    raise SystemExit(1)
+    print("\n[WARN] DATABASE_URL uses mysql+pymysql but PyMySQL is missing — using SQLite.")
+    app.config['SQLALCHEMY_DATABASE_URI'] = default_sqlite_uri()
+    app.config['DB_SQLITE_FALLBACK_USED'] = True
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = sqlite_engine_options()
+    _db_uri = app.config['SQLALCHEMY_DATABASE_URI'].lower()
 
 if not _deps_status.get("pdf2docx_spec") and not _deps_status.get("packages_dir_exists"):
     print("\n[WARN] python_packages not found — PDF -> DOCX translation will fail.")

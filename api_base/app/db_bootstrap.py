@@ -45,11 +45,16 @@ def _env_truthy(name: str) -> bool:
     return (os.getenv(name) or "").strip().lower() in ("1", "true", "yes", "on")
 
 
+def _is_azure_host() -> bool:
+    return bool(os.getenv("WEBSITE_SITE_NAME") or os.getenv("WEBSITES_PORT"))
+
+
 def _connect_timeout_seconds() -> int:
+    default = "3" if _is_azure_host() else "8"
     try:
-        return int(os.getenv("DB_CONNECT_TIMEOUT_SECONDS", "8") or 8)
+        return int(os.getenv("DB_CONNECT_TIMEOUT_SECONDS", default) or default)
     except Exception:
-        return 8
+        return 3 if _is_azure_host() else 8
 
 
 def mysql_engine_options(timeout: int | None = None) -> dict:
@@ -101,33 +106,45 @@ def resolve_database_uri() -> Tuple[str, bool]:
 
     Returns (uri, used_sqlite_fallback).
     """
-    requested = os.getenv(
-        "DATABASE_URL",
-        "mysql+pymysql://root:@localhost:3306/ai_translation",
-    ).strip()
+    try:
+        requested = os.getenv(
+            "DATABASE_URL",
+            "mysql+pymysql://root:@localhost:3306/ai_translation",
+        ).strip()
 
-    if requested.startswith("sqlite"):
-        return requested, False
-
-    if _env_truthy("DB_FORCE_SQLITE"):
-        sqlite_uri = os.getenv("SQLITE_DATABASE_URL", "").strip() or default_sqlite_uri()
-        print("[db] DB_FORCE_SQLITE=1 — using SQLite.")
-        print(f"[db] SQLite path: {mask_db_uri(sqlite_uri)}")
-        return sqlite_uri, True
-
-    if _env_truthy("DB_DISABLE_SQLITE_FALLBACK"):
-        return requested, False
-
-    if requested.startswith("mysql+pymysql://"):
-        if test_mysql_connection(requested):
+        if requested.startswith("sqlite"):
             return requested, False
 
-        sqlite_uri = os.getenv("SQLITE_DATABASE_URL", "").strip() or default_sqlite_uri()
-        print("\n[WARN] MySQL/XAMPP is unavailable — switching to SQLite fallback.")
-        print(f"[db] Requested: {mask_db_uri(requested)}")
-        print(f"[db] Fallback:  {mask_db_uri(sqlite_uri)}")
-        print("[db] Start XAMPP MySQL and set DATABASE_URL to use MySQL again.")
-        print("[db] To disable auto-fallback: DB_DISABLE_SQLITE_FALLBACK=1\n")
-        return sqlite_uri, True
+        if _env_truthy("DB_FORCE_SQLITE"):
+            sqlite_uri = os.getenv("SQLITE_DATABASE_URL", "").strip() or default_sqlite_uri()
+            print("[db] DB_FORCE_SQLITE=1 — using SQLite.")
+            print(f"[db] SQLite path: {mask_db_uri(sqlite_uri)}")
+            return sqlite_uri, True
 
-    return requested, False
+        if _env_truthy("DB_DISABLE_SQLITE_FALLBACK"):
+            return requested, False
+
+        if requested.startswith("mysql+pymysql://"):
+            if importlib.util.find_spec("pymysql") is None:
+                sqlite_uri = os.getenv("SQLITE_DATABASE_URL", "").strip() or default_sqlite_uri()
+                print("\n[WARN] DATABASE_URL uses mysql+pymysql but PyMySQL is missing — using SQLite.")
+                print(f"[db] Fallback:  {mask_db_uri(sqlite_uri)}")
+                return sqlite_uri, True
+
+            if test_mysql_connection(requested):
+                return requested, False
+
+            sqlite_uri = os.getenv("SQLITE_DATABASE_URL", "").strip() or default_sqlite_uri()
+            print("\n[WARN] MySQL/XAMPP is unavailable — switching to SQLite fallback.")
+            print(f"[db] Requested: {mask_db_uri(requested)}")
+            print(f"[db] Fallback:  {mask_db_uri(sqlite_uri)}")
+            print("[db] Start XAMPP MySQL and set DATABASE_URL to use MySQL again.")
+            print("[db] To disable auto-fallback: DB_DISABLE_SQLITE_FALLBACK=1\n")
+            return sqlite_uri, True
+
+        return requested, False
+    except Exception as exc:
+        sqlite_uri = os.getenv("SQLITE_DATABASE_URL", "").strip() or default_sqlite_uri()
+        print(f"\n[WARN] Database URI resolution failed ({exc}) — using SQLite.")
+        print(f"[db] Fallback:  {mask_db_uri(sqlite_uri)}")
+        return sqlite_uri, True

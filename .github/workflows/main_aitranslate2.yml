@@ -39,6 +39,15 @@ jobs:
           PYTHONPATH=python_packages python -c "import cv2; import fitz; from pdf2docx import Converter; print('pdf2docx OK', cv2.__version__, fitz.VersionBind)"
           test -d python_packages/pdf2docx || (echo "pdf2docx folder missing in artifact" && exit 1)
           test -d python_packages/cv2 || (echo "cv2 missing in artifact" && exit 1)
+          PYTHONPATH=python_packages python -c "import gunicorn; print('gunicorn OK', gunicorn.__version__)"
+
+      - name: Verify run_api boots on Linux (Azure-like env)
+        run: |
+          export WEBSITE_SITE_NAME=aitranslate2
+          export WEBSITES_PORT=8000
+          export BACKEND_PORT=8000
+          cd api_base
+          PYTHONPATH=../python_packages python -c "import run_api; print('run_api boot OK')"
 
       - name: Verify pdf2docx imports on slim Linux (Azure-like, no libxcb)
         run: |
@@ -73,6 +82,9 @@ jobs:
         with:
           name: python-app
 
+      - name: Prepare startup script
+        run: chmod +x startup.sh
+
       - name: Login to Azure
         uses: azure/login@v2
         with:
@@ -86,4 +98,4 @@ jobs:
         with:
           app-name: aitranslate2
           slot-name: Production
-          startup-command: 'cd /home/site/wwwroot && PYTHONPATH=/home/site/wwwroot/python_packages:$PYTHONPATH python api_base/run_api.py'
+          startup-command: 'bash /home/site/wwwroot/startup.sh'
