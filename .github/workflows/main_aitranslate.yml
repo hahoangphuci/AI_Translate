@@ -121,57 +121,86 @@ jobs:
             --name aitranslate \
             --query publishingPassword -o tsv)
           echo "::add-mask::$PASS"
+          echo "PUBLISH_USER=$USER" >> "$GITHUB_ENV"
+          echo "PUBLISH_PASS=$PASS" >> "$GITHUB_ENV"
 
-          curl -sf -u "$USER:$PASS" -H "Content-Type: application/json" \
+      - name: Reset stuck Kudu deployment state
+        run: |
+          echo "Stopping site via Kudu..."
+          curl -sf -X POST -u "$PUBLISH_USER:$PUBLISH_PASS" "$SCM_URL/api/app/stop" || true
+
+          echo "Deleting stale deployment records..."
+          DEPLOY_IDS=$(curl -sf -u "$PUBLISH_USER:$PUBLISH_PASS" "$SCM_URL/api/deployments" | jq -r '.[].id // empty')
+          for ID in $DEPLOY_IDS; do
+            echo "Deleting deployment $ID"
+            curl -sf -X DELETE -u "$PUBLISH_USER:$PUBLISH_PASS" "$SCM_URL/api/deployments/$ID" || true
+          done
+
+          echo "Clearing locks and deployment folders on disk..."
+          curl -sf -u "$PUBLISH_USER:$PUBLISH_PASS" -H "Content-Type: application/json" \
             -d '{"command":"rm -rf /home/site/locks/* /home/site/deployments/*; echo kudu-cleaned","dir":"/home"}' \
-            "$SCM/api/command" || echo "Kudu cleanup skipped (non-fatal)"
+            "$SCM_URL/api/command" || echo "Disk cleanup skipped (non-fatal)"
 
-          echo "Waiting 120s for Kudu to settle..."
-          sleep 120
+          echo "Waiting 180s for in-progress deployment to release..."
+          sleep 180
 
       - name: Deploy via Kudu ZipDeploy (bypass OneDeploy)
         run: |
-          USER=$(az webapp deployment list-publishing-credentials \
-            --resource-group "$RESOURCE_GROUP" \
-            --name aitranslate \
-            --query publishingUserName -o tsv)
-          PASS=$(az webapp deployment list-publishing-credentials \
-            --resource-group "$RESOURCE_GROUP" \
-            --name aitranslate \
-            --query publishingPassword -o tsv)
+          zipdeploy_once() {
+            curl -sS -w "%{http_code}" -o zipdeploy-response.json \
+              -X POST \
+              -u "$PUBLISH_USER:$PUBLISH_PASS" \
+              --data-binary @"deploy.zip" \
+              -H "Content-Type: application/zip" \
+              "$SCM_URL/api/zipdeploy?isAsync=true&deployer=GITHUB_ACTIONS"
+          }
 
-          echo "Starting async ZipDeploy..."
-          HTTP_CODE=$(curl -sS -w "%{http_code}" -o zipdeploy-response.json \
-            -X POST \
-            -u "$USER:$PASS" \
-            --data-binary @"deploy.zip" \
-            -H "Content-Type: application/zip" \
-            "$SCM_URL/api/zipdeploy?isAsync=true&deployer=GITHUB_ACTIONS")
+          for attempt in 1 2 3; do
+            echo "ZipDeploy attempt $attempt/3..."
+            HTTP_CODE=$(zipdeploy_once)
+            echo "ZipDeploy HTTP $HTTP_CODE"
+            cat zipdeploy-response.json || true
 
-          echo "ZipDeploy accepted with HTTP $HTTP_CODE"
-          cat zipdeploy-response.json || true
+            if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+              break
+            fi
 
-          if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
+            if [ "$HTTP_CODE" = "409" ] && [ "$attempt" -lt 3 ]; then
+              echo "Deployment in progress (409). Resetting Kudu and waiting..."
+              curl -sf -X POST -u "$PUBLISH_USER:$PUBLISH_PASS" "$SCM_URL/api/app/stop" || true
+              curl -sf -u "$PUBLISH_USER:$PUBLISH_PASS" "$SCM_URL/api/deployments" | jq -r '.[].id // empty' | while read -r ID; do
+                [ -n "$ID" ] && curl -sf -X DELETE -u "$PUBLISH_USER:$PUBLISH_PASS" "$SCM_URL/api/deployments/$ID" || true
+              done
+              curl -sf -u "$PUBLISH_USER:$PUBLISH_PASS" -H "Content-Type: application/json" \
+                -d '{"command":"rm -rf /home/site/locks/* /home/site/deployments/*; echo retry-cleaned","dir":"/home"}' \
+                "$SCM_URL/api/command" || true
+              sleep 180
+              continue
+            fi
+
             echo "ZipDeploy request failed"
             exit 1
-          fi
+          done
 
           echo "Polling deployment status (Oryx build may take 10-20 min)..."
           for i in $(seq 1 40); do
-            DEPLOY=$(curl -sf -u "$USER:$PASS" "$SCM_URL/api/deployments/latest" || echo '{}')
+            DEPLOY=$(curl -sf -u "$PUBLISH_USER:$PUBLISH_PASS" "$SCM_URL/api/deployments/latest" || echo '{}')
             STATUS=$(echo "$DEPLOY" | jq -r '.status // empty')
             MSG=$(echo "$DEPLOY" | jq -r '.message // empty')
             echo "Poll $i/40: status=$STATUS message=$MSG"
             if [ "$STATUS" = "4" ]; then
               echo "Deploy succeeded"
+              curl -sf -X POST -u "$PUBLISH_USER:$PUBLISH_PASS" "$SCM_URL/api/app/start" || true
               exit 0
             fi
             if [ "$STATUS" = "3" ]; then
               echo "Deploy failed"
-              curl -sf -u "$USER:$PASS" "$SCM_URL/api/deployments/latest/log" || true
+              curl -sf -u "$PUBLISH_USER:$PUBLISH_PASS" "$SCM_URL/api/deployments/latest/log" || true
+              curl -sf -X POST -u "$PUBLISH_USER:$PUBLISH_PASS" "$SCM_URL/api/app/start" || true
               exit 1
             fi
             sleep 30
           done
+          curl -sf -X POST -u "$PUBLISH_USER:$PUBLISH_PASS" "$SCM_URL/api/app/start" || true
           echo "Deploy timed out waiting for Oryx build"
           exit 1
