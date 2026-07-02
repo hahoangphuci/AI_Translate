@@ -821,6 +821,11 @@ def _convert_pdf_to_docx(
     engine = (engine or "pdf2docx").strip().lower()
     if engine in ("pdf2docx", "library", "lib"):
         try:
+            from deps_bootstrap import ensure_packages_on_path, has_pdf2docx, bootstrap_runtime_dependencies
+
+            ensure_packages_on_path()
+            if not has_pdf2docx():
+                bootstrap_runtime_dependencies(install_if_missing=True)
             from pdf2docx import Converter
         except Exception as exc:
             raise RuntimeError("pdf2docx is required for PDF -> DOCX conversion. Install: pip install pdf2docx") from exc

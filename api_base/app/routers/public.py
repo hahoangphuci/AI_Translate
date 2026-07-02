@@ -59,6 +59,21 @@ def public_legal_content(slug):
     return jsonify(meta), 200
 
 
+@public_bp.route("/deps", methods=["GET"])
+def public_deps():
+    """Runtime dependency probe (pdf2docx for PDF pipeline)."""
+    from deps_bootstrap import bootstrap_runtime_dependencies, has_pdf2docx, packages_dir
+
+    status = bootstrap_runtime_dependencies(install_if_missing=False)
+    return jsonify(
+        {
+            "pdf2docx": has_pdf2docx(),
+            "packages_dir": packages_dir(),
+            "packages_dir_exists": status.get("packages_dir_exists"),
+        }
+    ), 200
+
+
 @public_bp.route("/translation-providers", methods=["GET"])
 def public_translation_providers():
     """Built-in + custom translation APIs and plan availability (no auth)."""

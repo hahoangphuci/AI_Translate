@@ -1,3 +1,5 @@
+import hashlib
+import hashlib
 import os
 import re
 import unicodedata
@@ -207,6 +209,16 @@ class FileService:
         # Final attempt to raise helpful error
         raise last
 
+    def _file_cache_scope_id(self, file_path: str) -> str:
+        try:
+            st = os.stat(file_path)
+            with open(file_path, "rb") as fh:
+                head = fh.read(65536)
+            digest = hashlib.sha256(head).hexdigest()[:16]
+            return f"{digest}-{st.st_size}-{int(st.st_mtime)}"
+        except Exception:
+            return os.path.basename(file_path)
+
     def process_document(self, file_path, target_lang, progress_callback=None, *, ocr_images=False, ocr_langs=None, ocr_mode=None, bilingual_mode=None, bilingual_delimiter=None, translation_provider=None):
         filename = os.path.basename(file_path)
         name, ext = os.path.splitext(filename)
@@ -214,8 +226,9 @@ class FileService:
         mode_key = (str(bilingual_mode or 'none').strip().lower() or 'none')
         delimiter_key = self._normalize_bilingual_delimiter(bilingual_delimiter)
         provider_key = (str(translation_provider or '').strip().lower() or '-')
+        file_key = self._file_cache_scope_id(file_path)
         self._set_translation_cache_scope(
-            f"provider={provider_key};mode={mode_key};delimiter={delimiter_key};ext={ext.lower()}"
+            f"file={file_key};provider={provider_key};mode={mode_key};delimiter={delimiter_key};ext={ext.lower()}"
         )
         try:
             if ext.lower() == '.pdf':

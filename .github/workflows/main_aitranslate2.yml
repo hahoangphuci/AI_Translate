@@ -23,11 +23,12 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install dependencies into .python_packages (Linux wheels for Azure)
+      - name: Install dependencies into python_packages (Linux wheels for Azure)
         run: |
           python -m pip install --upgrade pip
-          pip install --target .python_packages -r requirements.txt
-          PYTHONPATH=.python_packages python -c "from pdf2docx import Converter; print('pdf2docx OK')"
+          pip install --target python_packages -r requirements.txt
+          PYTHONPATH=python_packages python -c "from pdf2docx import Converter; print('pdf2docx OK')"
+          test -d python_packages/pdf2docx || (echo "pdf2docx folder missing in artifact" && exit 1)
 
       - name: Upload artifact for deployment jobs
         uses: actions/upload-artifact@v4
@@ -70,4 +71,4 @@ jobs:
         with:
           app-name: aitranslate2
           slot-name: Production
-          startup-command: 'python api_base/run_api.py'
+          startup-command: 'PYTHONPATH=/home/site/wwwroot/python_packages:$PYTHONPATH python api_base/run_api.py'

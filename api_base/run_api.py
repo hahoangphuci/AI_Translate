@@ -35,12 +35,14 @@ _env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env')
 _override = (os.getenv('DOTENV_OVERRIDE') or '').strip().lower() in ('1', 'true', 'yes', 'on')
 load_dotenv(_env_path, override=_override)
 
-# Azure: dependencies installed by CI into repo-root/.python_packages
-_azure_pkg_dir = os.path.abspath(
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '.python_packages')
-)
-if os.path.isdir(_azure_pkg_dir) and _azure_pkg_dir not in sys.path:
-    sys.path.insert(0, _azure_pkg_dir)
+_api_dir = os.path.dirname(os.path.abspath(__file__))
+if _api_dir not in sys.path:
+    sys.path.insert(0, _api_dir)
+
+from deps_bootstrap import bootstrap_runtime_dependencies, ensure_packages_on_path, has_pdf2docx
+
+ensure_packages_on_path()
+_deps_status = bootstrap_runtime_dependencies(install_if_missing=True)
 
 # Azure App Service exposes WEBSITES_PORT; reuse for Flask when BACKEND_PORT unset.
 if not os.getenv('BACKEND_PORT') and os.getenv('WEBSITES_PORT'):
@@ -87,9 +89,11 @@ if 'mysql+pymysql://' in _db_uri and importlib.util.find_spec('pymysql') is None
     print("  # or let the app use SQLite when MySQL/XAMPP is down (default fallback)")
     raise SystemExit(1)
 
-if importlib.util.find_spec('pdf2docx') is None:
+if not has_pdf2docx():
     print("\n[WARN] pdf2docx is not installed — PDF -> DOCX translation will fail.")
     print("Install with: python -m pip install pdf2docx==0.5.7")
+    if _deps_status.get("install_error"):
+        print(f"[WARN] Azure auto-install failed: {_deps_status['install_error']}")
 else:
     print("[deps] pdf2docx OK")
 
