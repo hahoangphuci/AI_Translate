@@ -1004,6 +1004,33 @@ def _docx_stats(docx_path: str) -> Dict[str, Any]:
     }
 
 
+def _find_soffice() -> str:
+    env_path = (os.getenv("LIBREOFFICE_PATH") or "").strip()
+    if env_path and os.path.isfile(env_path):
+        return env_path
+    for name in ("soffice", "libreoffice"):
+        found = shutil.which(name)
+        if found:
+            return found
+    for candidate in (
+        "/usr/bin/soffice",
+        "/usr/bin/libreoffice",
+        "/usr/lib/libreoffice/program/soffice",
+    ):
+        if os.path.isfile(candidate):
+            return candidate
+    return ""
+
+
+def _export_fallback_docx_enabled() -> bool:
+    raw = (os.getenv("PDF_DOCX_EXPORT_FALLBACK_DOCX") or "").strip().lower()
+    if raw in ("1", "true", "yes", "on"):
+        return True
+    if raw in ("0", "false", "no", "off"):
+        return False
+    return bool(os.getenv("WEBSITE_SITE_NAME") or os.getenv("WEBSITES_PORT"))
+
+
 def _convert_docx_to_pdf(docx_path: str, output_dir: str, engine: str) -> str:
     os.makedirs(output_dir, exist_ok=True)
     engine = (engine or "auto").strip().lower()
@@ -1050,7 +1077,7 @@ def _convert_docx_to_pdf(docx_path: str, output_dir: str, engine: str) -> str:
         return False, last_error
 
     def _try_libreoffice() -> tuple[bool, str]:
-        soffice = os.getenv("LIBREOFFICE_PATH") or shutil.which("soffice")
+        soffice = _find_soffice()
         if not soffice:
             return False, "soffice not found in PATH and LIBREOFFICE_PATH is empty"
         cmd = [
@@ -1111,6 +1138,14 @@ def _convert_docx_to_pdf(docx_path: str, output_dir: str, engine: str) -> str:
     raise RuntimeError(f"Unknown PDF_DOCX_EXPORT_ENGINE: {engine}")
 
 
+def _deliver_translated_docx_fallback(translated_docx: str, output_dir: str) -> str:
+    os.makedirs(output_dir, exist_ok=True)
+    base = os.path.splitext(os.path.basename(translated_docx))[0]
+    dest = os.path.join(output_dir, f"{base}_translated.docx")
+    shutil.copy2(translated_docx, dest)
+    return dest
+
+
 def quality_check(
     source_docx: str,
     translated_docx: str,
@@ -1135,6 +1170,8 @@ def quality_check(
 
     if not os.path.exists(output_pdf):
         warnings.append("output_pdf_missing")
+    elif not str(output_pdf).lower().endswith(".pdf"):
+        warnings.append("output_docx_fallback")
 
     return warnings
 
@@ -1434,14 +1471,25 @@ def run_pdf_docx_pipeline(
         _emit(progress_callback, 89, f"DOCX font sanitize skipped ({msg})")
 
     _emit(progress_callback, 90, "DOCX -> PDF: exporting...")
-    output_pdf = _convert_docx_to_pdf(
-        translated_docx,
-        service.download_folder,
-        os.getenv("PDF_DOCX_EXPORT_ENGINE", "auto"),
-    )
+    output_path = ""
+    try:
+        output_path = _convert_docx_to_pdf(
+            translated_docx,
+            service.download_folder,
+            os.getenv("PDF_DOCX_EXPORT_ENGINE", "auto"),
+        )
+    except RuntimeError as exc:
+        if not _export_fallback_docx_enabled():
+            raise
+        output_path = _deliver_translated_docx_fallback(translated_docx, service.download_folder)
+        _emit(
+            progress_callback,
+            93,
+            f"PDF export unavailable ({exc}); delivered translated DOCX instead",
+        )
 
     _emit(progress_callback, 95, "Quality Checker: validating output...")
-    warnings = quality_check(tmp_docx, translated_docx, output_pdf, analysis)
+    warnings = quality_check(tmp_docx, translated_docx, output_path, analysis)
     if warnings:
         _emit(progress_callback, 98, f"Quality Checker warnings: {', '.join(warnings)}")
 
@@ -1450,9 +1498,9 @@ def run_pdf_docx_pipeline(
     if not keep_intermediate:
         for path in [tmp_docx, translated_docx, *intermediate_paths]:
             try:
-                if os.path.abspath(path) != os.path.abspath(output_pdf):
+                if os.path.abspath(path) != os.path.abspath(output_path):
                     os.remove(path)
             except Exception:
                 pass
 
-    return os.path.abspath(output_pdf)
+    return os.path.abspath(output_path)
