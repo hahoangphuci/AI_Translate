@@ -1,12 +1,4 @@
-# Azure App Service deploy for aitranslate2
-#
-# Portal setup (one time):
-#   SCM_DO_BUILD_DURING_DEPLOYMENT = true
-#   BACKEND_PORT = 8000
-#   WEBSITES_PORT = 8000
-#   Startup Command = python api_base/run_api.py
-
-name: Build and deploy Python app to Azure Web App - aitranslate2
+name: Deploy Python app to Azure Web App - aitranslate2
 
 on:
   push:
@@ -16,50 +8,42 @@ on:
 
 concurrency:
   group: aitranslate2-production
-  cancel-in-progress: false
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  id-token: write
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python version
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install dependencies
-        run: |
-          python -m venv antenv
-          source antenv/bin/activate
-          pip install -r requirements.txt
-
-      - name: Upload artifact for deployment jobs
-        uses: actions/upload-artifact@v4
-        with:
-          name: python-app
-          path: |
-            .
-            !antenv/
-            !app_web_view/
-            !requirements-full.txt
-
   deploy:
     runs-on: ubuntu-latest
-    needs: build
-    permissions:
-      id-token: write
-      contents: read
 
     steps:
-      - name: Download artifact from build job
-        uses: actions/download-artifact@v4
-        with:
-          name: python-app
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Stop if requirements are too heavy for App Service build
+        shell: bash
+        run: |
+          if grep -Eiq '^(torch|torchvision|transformers|accelerate|triton|docling|docling-core|docling-ibm-models|docling-parse|docling-slim|onnx|onnxruntime|pywin32|docx2pdf)(==|[[:space:]]|$)' requirements.txt; then
+            echo "requirements.txt still contains very heavy or Windows-only packages."
+            echo "Remove those packages before deploying to avoid No space left on device."
+            exit 1
+          fi
+
+      - name: Create clean deployment package
+        shell: bash
+        run: |
+          zip -r deploy.zip requirements.txt api_base frontend \
+            -x "api_base/instance/*" \
+               "*/__pycache__/*" \
+               "*.pyc" \
+               "*/.venv/*" \
+               "*/node_modules/*" \
+               "*.env" \
+               "*/.env" \
+               "requirements-full.txt"
+          ls -lh deploy.zip
 
       - name: Login to Azure
         uses: azure/login@v2
@@ -72,4 +56,4 @@ jobs:
         uses: azure/webapps-deploy@v3
         with:
           app-name: aitranslate2
-          package: .
+          package: deploy.zip
