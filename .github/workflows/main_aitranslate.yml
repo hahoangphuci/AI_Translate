@@ -1,10 +1,17 @@
-# Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
-# More GitHub Actions for Azure: https://github.com/Azure/actions
-# More info on Python, GitHub Actions, and Azure App Service: https://aka.ms/python-webapps-actions
+# Azure App Service deploy for aitranslate
+#
+# ONE-TIME setup in Azure Portal (Configuration):
+#   SCM_DO_BUILD_DURING_DEPLOYMENT = true
+#   BACKEND_PORT = 8000
+#   WEBSITES_PORT = 8000
+#   Startup Command = python api_base/run_api.py
+#
+# REQUIRED: Deployment Center -> Disconnect GitHub (avoid parallel deploy -> HTTP 409)
 
 name: Build and deploy Python app to Azure Web App - aitranslate
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
@@ -12,10 +19,7 @@ on:
       - 'api_base/**'
       - 'frontend/**'
       - 'requirements.txt'
-      - '.github/workflows/main_aitranslate.yml'
-  workflow_dispatch:
 
-# Do NOT cancel in-progress deploys: cancelled OneDeploy runs leave Kudu locks (HTTP 409).
 concurrency:
   group: aitranslate-production
   cancel-in-progress: false
@@ -34,7 +38,7 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Create and Start virtual environment and Install dependencies
+      - name: Validate dependencies install
         run: |
           python -m venv antenv
           source antenv/bin/activate
@@ -75,42 +79,23 @@ jobs:
             -x "*__pycache__/*" \
             -x "*/.venv/*" \
             -x "frontend/node_modules/*"
+          ls -lh deploy.zip
 
-      - name: Configure Azure app and clear Kudu state
+      - name: Prepare Kudu and wait until idle
         run: |
+          set -euo pipefail
+
           RG=$(az webapp list --query "[?name=='aitranslate'].resourceGroup | [0]" -o tsv)
           if [ -z "$RG" ]; then
             echo "Could not resolve resource group for aitranslate"
             exit 1
           fi
-          echo "RESOURCE_GROUP=$RG" >> "$GITHUB_ENV"
 
           PUBLISH_URL=$(az webapp deployment list-publishing-profiles \
             --resource-group "$RG" \
             --name aitranslate \
             --query "[?publishMethod=='ZipDeploy'].publishUrl | [0]" -o tsv)
           SCM="https://${PUBLISH_URL%%:*}"
-          echo "SCM_URL=$SCM" >> "$GITHUB_ENV"
-          echo "Resource group: $RG"
-          echo "SCM URL: $SCM"
-
-          az webapp config appsettings delete \
-            --resource-group "$RG" \
-            --name aitranslate \
-            --setting-names WEBSITE_RUN_FROM_PACKAGE \
-            --output none 2>/dev/null || true
-
-          az webapp config appsettings set \
-            --resource-group "$RG" \
-            --name aitranslate \
-            --settings SCM_DO_BUILD_DURING_DEPLOYMENT=true BACKEND_PORT=8000 WEBSITES_PORT=8000 \
-            --output none
-
-          az webapp config set \
-            --resource-group "$RG" \
-            --name aitranslate \
-            --startup-file "python api_base/run_api.py" \
-            --output none
 
           USER=$(az webapp deployment list-publishing-credentials \
             --resource-group "$RG" \
@@ -121,66 +106,72 @@ jobs:
             --name aitranslate \
             --query publishingPassword -o tsv)
           echo "::add-mask::$PASS"
+
+          echo "RESOURCE_GROUP=$RG" >> "$GITHUB_ENV"
+          echo "SCM_URL=$SCM" >> "$GITHUB_ENV"
           echo "PUBLISH_USER=$USER" >> "$GITHUB_ENV"
           echo "PUBLISH_PASS=$PASS" >> "$GITHUB_ENV"
 
-      - name: Reset stuck Kudu deployment state
-        run: |
-          echo "Stopping site via Kudu..."
-          curl -sf -X POST -u "$PUBLISH_USER:$PUBLISH_PASS" "$SCM_URL/api/app/stop" || true
+          echo "Restarting app to clear in-memory Kudu deployment lock..."
+          az webapp restart --resource-group "$RG" --name aitranslate
+          sleep 90
 
-          echo "Deleting stale deployment records..."
-          DEPLOY_IDS=$(curl -sf -u "$PUBLISH_USER:$PUBLISH_PASS" "$SCM_URL/api/deployments" | jq -r '.[].id // empty')
-          for ID in $DEPLOY_IDS; do
-            echo "Deleting deployment $ID"
-            curl -sf -X DELETE -u "$PUBLISH_USER:$PUBLISH_PASS" "$SCM_URL/api/deployments/$ID" || true
-          done
+          echo "=== Kudu deployments (before upload) ==="
+          curl -sf -u "$USER:$PASS" "$SCM/api/deployments" | jq '.[0:5]' || echo "[]"
 
-          echo "Clearing locks and deployment folders on disk..."
-          curl -sf -u "$PUBLISH_USER:$PUBLISH_PASS" -H "Content-Type: application/json" \
-            -d '{"command":"rm -rf /home/site/locks/* /home/site/deployments/*; echo kudu-cleaned","dir":"/home"}' \
-            "$SCM_URL/api/command" || echo "Disk cleanup skipped (non-fatal)"
+          echo "=== Waiting for Kudu to become idle ==="
+          for i in $(seq 1 60); do
+            LATEST=$(curl -sf -u "$USER:$PASS" "$SCM/api/deployments/latest" 2>/dev/null || echo '{}')
+            STATUS=$(echo "$LATEST" | jq -r '.status // "none"')
+            MSG=$(echo "$LATEST" | jq -r '.message // ""')
+            echo "Idle check $i/60: status=$STATUS message=$MSG"
 
-          echo "Waiting 180s for in-progress deployment to release..."
-          sleep 180
-
-      - name: Deploy via Kudu ZipDeploy (bypass OneDeploy)
-        run: |
-          zipdeploy_once() {
-            curl -sS -w "%{http_code}" -o zipdeploy-response.json \
-              -X POST \
-              -u "$PUBLISH_USER:$PUBLISH_PASS" \
-              --data-binary @"deploy.zip" \
-              -H "Content-Type: application/zip" \
-              "$SCM_URL/api/zipdeploy?isAsync=true&deployer=GITHUB_ACTIONS"
-          }
-
-          for attempt in 1 2 3; do
-            echo "ZipDeploy attempt $attempt/3..."
-            HTTP_CODE=$(zipdeploy_once)
-            echo "ZipDeploy HTTP $HTTP_CODE"
-            cat zipdeploy-response.json || true
-
-            if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
-              break
-            fi
-
-            if [ "$HTTP_CODE" = "409" ] && [ "$attempt" -lt 3 ]; then
-              echo "Deployment in progress (409). Resetting Kudu and waiting..."
-              curl -sf -X POST -u "$PUBLISH_USER:$PUBLISH_PASS" "$SCM_URL/api/app/stop" || true
-              curl -sf -u "$PUBLISH_USER:$PUBLISH_PASS" "$SCM_URL/api/deployments" | jq -r '.[].id // empty' | while read -r ID; do
-                [ -n "$ID" ] && curl -sf -X DELETE -u "$PUBLISH_USER:$PUBLISH_PASS" "$SCM_URL/api/deployments/$ID" || true
-              done
-              curl -sf -u "$PUBLISH_USER:$PUBLISH_PASS" -H "Content-Type: application/json" \
-                -d '{"command":"rm -rf /home/site/locks/* /home/site/deployments/*; echo retry-cleaned","dir":"/home"}' \
-                "$SCM_URL/api/command" || true
-              sleep 180
+            # 0=pending, 1=building, 2=deploying -> still busy
+            if [ "$STATUS" = "0" ] || [ "$STATUS" = "1" ] || [ "$STATUS" = "2" ]; then
+              sleep 30
               continue
             fi
+            break
+          done
 
+          FINAL_STATUS=$(curl -sf -u "$USER:$PASS" "$SCM/api/deployments/latest" 2>/dev/null | jq -r '.status // "none"')
+          if [ "$FINAL_STATUS" = "0" ] || [ "$FINAL_STATUS" = "1" ] || [ "$FINAL_STATUS" = "2" ]; then
+            echo ""
+            echo "ERROR: Kudu still reports an active deployment (status=$FINAL_STATUS)."
+            echo "Another source is deploying to this app (usually Azure Deployment Center)."
+            echo "Fix: Azure Portal -> App Service -> Deployment Center -> Disconnect GitHub."
+            echo "Then: Overview -> Restart, wait 5 minutes, re-run this workflow once."
+            exit 1
+          fi
+
+          echo "Kudu is idle. Proceeding to ZipDeploy."
+
+      - name: Deploy via Kudu ZipDeploy
+        run: |
+          set -euo pipefail
+
+          HTTP_CODE=$(curl -sS -w "%{http_code}" -o zipdeploy-response.json \
+            -X POST \
+            -u "$PUBLISH_USER:$PUBLISH_PASS" \
+            --data-binary @"deploy.zip" \
+            -H "Content-Type: application/zip" \
+            "$SCM_URL/api/zipdeploy?isAsync=true&deployer=GITHUB_ACTIONS")
+
+          echo "ZipDeploy HTTP $HTTP_CODE"
+          cat zipdeploy-response.json || true
+
+          if [ "$HTTP_CODE" = "409" ]; then
+            echo ""
+            echo "ERROR: HTTP 409 - deployment already in progress on Kudu."
+            echo "Azure Deployment Center is likely still connected and deploying in parallel."
+            echo "Disconnect it in Portal, restart the app, wait 5 minutes, run workflow again."
+            exit 1
+          fi
+
+          if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
             echo "ZipDeploy request failed"
             exit 1
-          done
+          fi
 
           echo "Polling deployment status (Oryx build may take 10-20 min)..."
           for i in $(seq 1 40); do
@@ -190,17 +181,15 @@ jobs:
             echo "Poll $i/40: status=$STATUS message=$MSG"
             if [ "$STATUS" = "4" ]; then
               echo "Deploy succeeded"
-              curl -sf -X POST -u "$PUBLISH_USER:$PUBLISH_PASS" "$SCM_URL/api/app/start" || true
               exit 0
             fi
             if [ "$STATUS" = "3" ]; then
               echo "Deploy failed"
               curl -sf -u "$PUBLISH_USER:$PUBLISH_PASS" "$SCM_URL/api/deployments/latest/log" || true
-              curl -sf -X POST -u "$PUBLISH_USER:$PUBLISH_PASS" "$SCM_URL/api/app/start" || true
               exit 1
             fi
             sleep 30
           done
-          curl -sf -X POST -u "$PUBLISH_USER:$PUBLISH_PASS" "$SCM_URL/api/app/start" || true
+
           echo "Deploy timed out waiting for Oryx build"
           exit 1
