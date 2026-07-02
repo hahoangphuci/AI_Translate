@@ -44,6 +44,9 @@ from deps_bootstrap import bootstrap_runtime_dependencies, ensure_packages_on_pa
 ensure_packages_on_path()
 _deps_status = bootstrap_runtime_dependencies(install_if_missing=False, probe_import=False)
 
+def _is_azure() -> bool:
+    return bool(os.getenv("WEBSITE_SITE_NAME") or os.getenv("WEBSITES_PORT"))
+
 # Azure App Service exposes WEBSITES_PORT; reuse for Flask when BACKEND_PORT unset.
 if not os.getenv('BACKEND_PORT') and os.getenv('WEBSITES_PORT'):
     os.environ['BACKEND_PORT'] = os.environ['WEBSITES_PORT']
@@ -118,7 +121,10 @@ with app.app_context():
         print(f"DATABASE_URL: {_safe_db_uri or '(empty)'}")
         print("If using MySQL/XAMPP: start MySQL and verify api_base/.env credentials.")
         print("Local dev fallback: stop MySQL and restart — app auto-switches to SQLite.")
-        raise SystemExit(1) from e
+        if _is_azure():
+            print("[WARN] Azure: continuing startup without DB init (check DATABASE_URL / use SQLite).")
+        else:
+            raise SystemExit(1) from e
 
     from app.db_migrations import run_schema_migrations
     try:
@@ -341,15 +347,21 @@ def game_leaderboard():
 
 if __name__ == '__main__':
     _port = int(os.getenv('BACKEND_PORT', '5055') or 5055)
+    _on_azure = _is_azure()
     # Print plain URLs on their own lines so VS Code terminal can Ctrl+Click reliably.
     _url_loopback = f"http://127.0.0.1:{_port}"
     _url_localhost = f"http://localhost:{_port}"
     print(f"Open URL: {_url_loopback}")
     print(f"Open URL: {_url_localhost}")
     print(f"Public stats API: {_url_loopback}/api/public/stats")
+    if _on_azure:
+        print(f"[azure] Listening on 0.0.0.0:{_port} (WEBSITES_PORT={os.getenv('WEBSITES_PORT', '')})")
 
-    # Optional auto-open browser for local dev.
-    _auto_open = (os.getenv('BACKEND_AUTO_OPEN_BROWSER', '1') or '').strip().lower() in ('1', 'true', 'yes', 'on')
+    # Optional auto-open browser for local dev only.
+    _auto_open = (
+        not _on_azure
+        and (os.getenv('BACKEND_AUTO_OPEN_BROWSER', '1') or '').strip().lower() in ('1', 'true', 'yes', 'on')
+    )
     if _auto_open:
         _open_delay = float(os.getenv('BACKEND_AUTO_OPEN_DELAY_SECONDS', '1.2') or 1.2)
 
@@ -361,14 +373,15 @@ if __name__ == '__main__':
 
         threading.Timer(_open_delay, _open_browser).start()
 
-    try:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as _sock:
-            _sock.settimeout(0.5)
-            if _sock.connect_ex(('127.0.0.1', _port)) == 0:
-                print(f"[ERROR] Port {_port} is already in use. Another backend instance is running.")
-                raise SystemExit(1)
-    except SystemExit:
-        raise
-    except OSError:
-        pass  # Socket probe failed (permission/network policy); let Flask report if port is unavailable
+    if not _on_azure:
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as _sock:
+                _sock.settimeout(0.5)
+                if _sock.connect_ex(('127.0.0.1', _port)) == 0:
+                    print(f"[ERROR] Port {_port} is already in use. Another backend instance is running.")
+                    raise SystemExit(1)
+        except SystemExit:
+            raise
+        except OSError:
+            pass  # Socket probe failed; let Flask report if port is unavailable
     app.run(host='0.0.0.0', port=_port, debug=False, use_reloader=False)

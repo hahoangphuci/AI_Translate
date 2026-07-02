@@ -86,4 +86,4 @@ jobs:
         with:
           app-name: aitranslate2
           slot-name: Production
-          startup-command: 'PYTHONPATH=/home/site/wwwroot/python_packages:$PYTHONPATH python /home/site/wwwroot/api_base/run_api.py'
+          startup-command: 'cd /home/site/wwwroot && PYTHONPATH=/home/site/wwwroot/python_packages:$PYTHONPATH python api_base/run_api.py'
