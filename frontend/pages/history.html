@@ -14,6 +14,8 @@
     <link rel="stylesheet" href="/css/home.css" />
     <link rel="stylesheet" href="/css/dashboard.css" />
     <link rel="stylesheet" href="/libs/fontawesome/css/all.min.css" />
+    <script src="/js/i18n_data.js"></script>
+    <script src="/js/i18n.js" defer></script>
     <script src="/js/auth_state.js" defer></script>
     <style>
       /* ── History page ── */
@@ -548,6 +550,7 @@
       </div>
     </section>
 
+    <script src="/js/toast.js"></script>
     <script>
       const state = { page: 1, pages: 1, type: "all", date: "" };
 
@@ -733,7 +736,13 @@
       }
 
       async function deleteHistoryItem(id, buttonEl) {
-        if (!confirm("Xóa bản dịch này?")) return;
+        const ok = await showConfirm({
+          title: "Xóa bản dịch",
+          message: "Xóa bản dịch này?",
+          confirmText: "Xóa",
+          danger: true,
+        });
+        if (!ok) return;
         const resp = await fetch(`/api/history/${id}`, {
           method: "DELETE",
           headers: { ...getAuthHeaders() },
@@ -749,5 +758,7 @@
 
       document.addEventListener("DOMContentLoaded", loadHistory);
     </script>
+    <script src="/js/site_config.js"></script>
+    <script src="/js/inline_editor.js"></script>
   </body>
 </html>

@@ -1,4 +1,101 @@
 // auth.js - Authentication module
+
+/**
+ * Download helper — hoạt động trên cả desktop browser và Flutter WebView (Android).
+ * Trong WebView, blob URL không download được → gọi Flutter JS channel để mở Chrome ngoài.
+ */
+async function triggerDownload(downloadUrl, filename) {
+  // Đảm bảo URL tuyệt đối
+  const absUrl = downloadUrl.startsWith("http")
+    ? downloadUrl
+    : window.location.origin +
+      (downloadUrl.startsWith("/") ? "" : "/") +
+      downloadUrl;
+
+  // Flutter WebView: dùng JS channel để mở Chrome ngoài (hỗ trợ download thật sự)
+  if (window.flutter_inappwebview) {
+    try {
+      await window.flutter_inappwebview.callHandler(
+        "flutterDownload",
+        absUrl,
+        filename || "",
+      );
+      return;
+    } catch (e) {
+      console.warn("Flutter download handler failed, fallback:", e);
+    }
+  }
+
+  // Desktop browser: fetch → blob → <a download> click
+  try {
+    const resp = await fetch(downloadUrl);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const blob = await resp.blob();
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename || "translated_file";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  } catch (e) {
+    console.error("Download failed:", e);
+    window.open(downloadUrl, "_blank");
+  }
+}
+
+const PLAN_TOKEN_CAPS = { free: 5000, pro: 120000, promax: 300000 };
+
+function getPlanTokenCap(plan) {
+  const caps = window.SITE_PLAN_CAPS || PLAN_TOKEN_CAPS;
+  const key = String(plan || "free").toLowerCase();
+  return caps[key] || PLAN_TOKEN_CAPS[key] || 5000;
+}
+
+/** balance = token còn lại; usedPct = % đã dùng trong hạn mức gói */
+function calcTokenUsage(balance, cap) {
+  const bal = Math.max(0, parseInt(balance, 10) || 0);
+  const planCap = Math.max(1, parseInt(cap, 10) || 5000);
+  const used = Math.max(0, planCap - Math.min(bal, planCap));
+  const usedPct = Math.min(100, Math.round((used / planCap) * 100));
+  const remainingPct = Math.min(
+    100,
+    Math.round((Math.min(bal, planCap) / planCap) * 100),
+  );
+  return { balance: bal, cap: planCap, used, usedPct, remainingPct };
+}
+
+function updateTokenUsageUI(plan, tokenBalance) {
+  const cap = getPlanTokenCap(plan);
+  const usage = calcTokenUsage(tokenBalance, cap);
+
+  const usedEl = document.getElementById("usedToday");
+  const quotaEl = document.getElementById("dailyQuota");
+  const fillEl = document.getElementById("usageFill");
+  const usageEl = document.getElementById("usagePercent");
+
+  if (usedEl) {
+    usedEl.textContent = usage.balance.toLocaleString("vi-VN");
+    usedEl.dataset.balance = String(usage.balance);
+  }
+  if (quotaEl) {
+    quotaEl.textContent = usage.cap.toLocaleString("vi-VN") + " token";
+    quotaEl.dataset.cap = String(usage.cap);
+  }
+  if (fillEl) fillEl.style.width = usage.remainingPct + "%";
+  if (usageEl) usageEl.textContent = usage.usedPct + "%";
+}
+
+function applyTokenBalanceFromResponse(data, authManager) {
+  if (!data || data.token_balance == null || !authManager) return;
+  const plan = authManager.profile?.plan || "free";
+  updateTokenUsageUI(plan, data.token_balance);
+  if (authManager.profile) {
+    authManager.profile.token_balance = data.token_balance;
+  }
+}
+
 class AuthManager {
   constructor() {
     this.token = localStorage.getItem("token");
@@ -105,22 +202,8 @@ class AuthManager {
             }
           }
 
-          const usedEl = document.getElementById("usedToday");
-          const quotaEl = document.getElementById("dailyQuota");
-          const fillEl = document.getElementById("usageFill");
-          const PLAN_CAPS = { free: 5000, pro: 120000, promax: 300000 };
-          const planKey = String(data.plan || "free").toLowerCase();
-          const cap = PLAN_CAPS[planKey] || 5000;
-          const tokenBalance = parseInt(data.token_balance || 0, 10);
-          const pct = Math.min(100, Math.round((tokenBalance / cap) * 100));
-          if (usedEl) usedEl.textContent = tokenBalance.toLocaleString("vi-VN");
-          if (quotaEl) {
-            quotaEl.textContent = cap.toLocaleString("vi-VN") + " token";
-            quotaEl.dataset.cap = cap;
-          }
-          if (fillEl) {
-            fillEl.style.width = pct + "%";
-          }
+          updateTokenUsageUI(data.plan, data.token_balance);
+          syncTranslationProvidersForPlan(data.plan);
         }
       } catch (e) {
         console.warn("Failed to update plan UI", e);
@@ -156,9 +239,23 @@ class AuthManager {
 
 // UI Manager
 class UIManager {
+  static uiT(key, fallback) {
+    if (window.SiteI18n && typeof window.SiteI18n.t === "function") {
+      const value = window.SiteI18n.t(key);
+      if (value && value !== key) return value;
+    }
+    return fallback != null ? fallback : key;
+  }
   static showTab(tabName) {
     try {
       console.debug("[UI] showTab called for", tabName);
+      const normalizedTab = tabName || "translate";
+      try {
+        sessionStorage.setItem("dashboard_active_tab", normalizedTab);
+      } catch {
+        /* ignore */
+      }
+      document.documentElement.removeAttribute("data-dashboard-tab");
       // Hide all tabs
       document.querySelectorAll(".tab-content").forEach((tab) => {
         tab.classList.remove("active");
@@ -196,7 +293,8 @@ class UIManager {
     }
   }
 
-  static showLoading(button, text = "Đang xử lý...") {
+  static showLoading(button, text) {
+    if (text == null) text = UIManager.uiT("msg.processing", "Processing...");
     const originalText = button.innerHTML;
     button.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${text}`;
     button.disabled = true;
@@ -209,8 +307,14 @@ class UIManager {
   }
 
   static showAlert(message, type = "error") {
-    // Simple alert for now, can be enhanced with toast notifications
-    alert(message);
+    if (typeof showToast === "function") {
+      showToast(message, type === "success" ? "success" : "error");
+      return;
+    }
+    UIManager.showNotification(
+      message,
+      type === "success" ? "success" : "error",
+    );
   }
 
   static showNotification(message, type = "info") {
@@ -483,11 +587,15 @@ class TranslationManager {
 
     // Toolbar buttons
     document.querySelectorAll(".toolbar-btn").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
+      btn.addEventListener("click", async (e) => {
         const cmd = btn.dataset.cmd;
         if (!cmd) return;
         if (cmd === "createLink") {
-          const url = prompt("Nhập URL (ví dụ: https://example.com)");
+          const url = await showPrompt({
+            title: "Thêm liên kết",
+            message: "Nhập URL (ví dụ: https://example.com)",
+            placeholder: "https://example.com",
+          });
           if (url) document.execCommand(cmd, false, url);
         } else {
           document.execCommand(cmd, false, null);
@@ -546,14 +654,16 @@ class TranslationManager {
 
     // Ensure user is authenticated
     if (!this.auth.isAuthenticated()) {
-      UIManager.showError("Vui lòng đăng nhập để sử dụng chức năng dịch!");
+      UIManager.showError(
+        UIManager.uiT("msg.loginRequired", "Please sign in."),
+      );
       // Optionally redirect to login after short delay
       setTimeout(() => this.auth.redirectToLogin(), 800);
       return;
     }
 
     if (!text) {
-      UIManager.showError("Vui lòng nhập văn bản cần dịch!");
+      UIManager.showError(UIManager.uiT("msg.enterText", "Please enter text."));
       return;
     }
 
@@ -565,14 +675,21 @@ class TranslationManager {
     const translateLoading = document.getElementById("translateLoading");
 
     // Show loading state
-    translateBtnText.textContent = "Đang dịch...";
+    translateBtnText.textContent = UIManager.uiT(
+      "msg.translating",
+      "Translating...",
+    );
     translateLoading.style.display = "inline-block";
     translateBtn.disabled = true;
     // Accessibility: set ARIA busy and live status
     try {
       translateBtn.setAttribute("aria-busy", "true");
       const translateStatusEl = document.getElementById("translateStatus");
-      if (translateStatusEl) translateStatusEl.textContent = "Đang dịch...";
+      if (translateStatusEl)
+        translateStatusEl.textContent = UIManager.uiT(
+          "msg.translating",
+          "Translating...",
+        );
     } catch (e) {
       // ignore
     }
@@ -607,22 +724,11 @@ class TranslationManager {
         }),
       });
 
-      // If token expired/invalid, retry without auth (route is optional-auth)
+      // Token hết hạn / không hợp lệ — bắt đăng nhập lại (không dịch ẩn danh)
       if (response.status === 401 || response.status === 422) {
-        console.warn(
-          "Auth token rejected, retrying text translation without auth...",
-        );
-        response = await fetch("/api/translation/text", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            text: text,
-            source_lang: sourceLang,
-            target_lang: targetLang,
-            translation_provider: translationProvider,
-            is_html: richOn && preserve ? true : false,
-          }),
-        });
+        UIManager.showError("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
+        setTimeout(() => this.auth.redirectToLogin(), 800);
+        return;
       }
 
       if (!response.ok) {
@@ -637,11 +743,13 @@ class TranslationManager {
 
       const data = await response.json();
       this.showTranslationResult(data.translated_text, data.is_html);
+      applyTokenBalanceFromResponse(data, this.auth);
 
       // Show a small success toast
       UIManager.showNotification("Dịch hoàn tất", "success");
 
       // Reload stats and history
+      dashboard.auth.loadUserInfo();
       dashboard.stats.loadStats();
       dashboard.history.loadHistory();
     } catch (error) {
@@ -653,7 +761,10 @@ class TranslationManager {
       UIManager.showNotification(error.message || "Lỗi khi dịch.", "error");
     } finally {
       // Hide loading state & finish progress
-      translateBtnText.textContent = "Dịch";
+      translateBtnText.textContent = UIManager.uiT(
+        "msg.translate",
+        "Translate",
+      );
       translateLoading.style.display = "none";
       translateBtn.disabled = false;
       // Clear ARIA busy
@@ -1021,7 +1132,9 @@ class FileUploadManager {
     }
 
     if (file.size > maxSize) {
-      UIManager.showAlert("File quá lớn. Giới hạn 50MB.");
+      UIManager.showAlert(
+        UIManager.uiT("msg.fileTooLarge", "File too large. Limit is 50MB."),
+      );
       return;
     }
 
@@ -1043,7 +1156,9 @@ class FileUploadManager {
 
   async uploadDocument() {
     if (!this.selectedFile) {
-      UIManager.showError("Vui lòng chọn file trước!");
+      UIManager.showError(
+        UIManager.uiT("msg.selectFile", "Please select a file first."),
+      );
       return;
     }
 
@@ -1122,13 +1237,10 @@ class FileUploadManager {
         body: formData,
       });
 
-      // If token expired/invalid, retry without auth (route is optional-auth)
       if (response.status === 401 || response.status === 422) {
-        console.warn("Auth token rejected, retrying upload without auth...");
-        response = await fetch("/api/translation/document", {
-          method: "POST",
-          body: formData,
-        });
+        UIManager.showError("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
+        setTimeout(() => this.auth.redirectToLogin(), 800);
+        return;
       }
 
       if (!response.ok) {
@@ -1142,6 +1254,7 @@ class FileUploadManager {
       }
 
       const data = await response.json();
+      applyTokenBalanceFromResponse(data, this.auth);
 
       // If job-based, start polling status
       if (data.job_id) {
@@ -1246,23 +1359,11 @@ class FileUploadManager {
 
               // Auto download
               if (statusData.download_url) {
-                setTimeout(async () => {
-                  try {
-                    const resp = await fetch(statusData.download_url);
-                    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-                    const blob = await resp.blob();
-                    const url = window.URL.createObjectURL(blob);
-                    const link = document.createElement("a");
-                    link.href = url;
-                    link.download = `translated_${this.selectedFile.name}`;
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                    window.URL.revokeObjectURL(url);
-                  } catch (e) {
-                    console.error("Download failed:", e);
-                    window.open(statusData.download_url, "_blank");
-                  }
+                setTimeout(() => {
+                  triggerDownload(
+                    statusData.download_url,
+                    `translated_${this.selectedFile.name}`,
+                  );
                 }, 500);
               }
 
@@ -1297,6 +1398,7 @@ class FileUploadManager {
               document.getElementById("uploadProgress").style.display = "none";
 
               // Reload stats and history
+              dashboard.auth.loadUserInfo();
               dashboard.stats.loadStats();
               dashboard.history.loadHistory();
             }
@@ -1342,26 +1444,15 @@ class FileUploadManager {
         UIManager.showSuccess("File đã được dịch thành công!");
 
         // Auto download after a short delay
-        setTimeout(async () => {
-          try {
-            const resp = await fetch(data.download_url);
-            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-            const blob = await resp.blob();
-            const url = window.URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            link.href = url;
-            link.download = `translated_${this.selectedFile.name}`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            window.URL.revokeObjectURL(url);
-          } catch (e) {
-            console.error("Download failed:", e);
-            window.open(data.download_url, "_blank");
-          }
+        setTimeout(() => {
+          triggerDownload(
+            data.download_url,
+            `translated_${this.selectedFile.name}`,
+          );
         }, 1000);
 
         // Reload stats and history
+        dashboard.auth.loadUserInfo();
         dashboard.stats.loadStats();
         dashboard.history.loadHistory();
       }
@@ -1638,7 +1729,12 @@ class ImageOcrManager {
     const targetLang =
       (document.getElementById("imageTargetLang") || {}).value || "";
     if (!targetLang) {
-      this.showImageError("Vui lòng chọn ngôn ngữ đích!");
+      this.showImageError(
+        UIManager.uiT(
+          "msg.selectTargetLang",
+          "Please select a target language.",
+        ),
+      );
       return;
     }
 
@@ -1669,13 +1765,10 @@ class ImageOcrManager {
         body: formData,
       });
 
-      // If token expired/invalid, retry without auth (route is optional-auth)
       if (resp.status === 401 || resp.status === 422) {
-        console.warn("Auth token rejected, retrying image OCR without auth...");
-        resp = await fetch("/api/translation/image", {
-          method: "POST",
-          body: formData,
-        });
+        UIManager.showError("Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.");
+        setTimeout(() => this.auth.redirectToLogin(), 800);
+        return;
       }
 
       const data = await resp.json().catch(() => ({}));
@@ -1726,8 +1819,10 @@ class ImageOcrManager {
           : "OCR & dịch hoàn tất",
         "success",
       );
+      applyTokenBalanceFromResponse(data, this.auth);
 
       // Reload stats and history
+      dashboard.auth.loadUserInfo();
       dashboard.stats.loadStats();
       dashboard.history.loadHistory();
     } catch (e) {
@@ -1809,20 +1904,6 @@ class DashboardStatsManager {
 
     document.getElementById("translationCount").textContent = todayCount;
     document.getElementById("documentCount").textContent = documentCount;
-
-    // Use quota info shown in plan card if available
-    const usedEl2 = document.getElementById("usedToday");
-    const quotaEl2 = document.getElementById("dailyQuota");
-    const used = parseInt((usedEl2 || {}).textContent || "0", 10);
-    const cap = parseInt((quotaEl2 && quotaEl2.dataset.cap) || "0", 10);
-
-    const usageEl = document.getElementById("usagePercent");
-    if (!usageEl) return;
-    if (!Number.isFinite(cap) || cap <= 0) {
-      usageEl.textContent = "—";
-    } else {
-      usageEl.textContent = `${Math.min(100, Math.round((used / cap) * 100))}%`;
-    }
   }
 }
 
@@ -2038,6 +2119,15 @@ class DashboardController {
     this._updatePlanCardStates();
   }
 
+  _canRepurchasePlan(plan) {
+    const currentPlan = String(this.auth.profile?.plan || "free").toLowerCase();
+    if (plan !== currentPlan || plan === "free") return false;
+    const balance = parseInt(this.auth.profile?.token_balance, 10) || 0;
+    const cap = getPlanTokenCap(plan);
+    const threshold = Math.max(1, Math.floor(cap * 0.1));
+    return balance <= threshold;
+  }
+
   _updatePlanCardStates() {
     const currentPlan = String(this.auth.profile?.plan || "free").toLowerCase();
     const plans = ["free", "pro", "promax"];
@@ -2057,6 +2147,10 @@ class DashboardController {
       pro: "Nâng cấp Pro",
       promax: "Nâng cấp ProMax",
     };
+    const repurchaseTexts = {
+      pro: "Mua thêm Pro",
+      promax: "Mua thêm ProMax",
+    };
     const onclicks = {
       free: "closeUpgradeModal()",
       pro: "startUpgrade('pro')",
@@ -2069,23 +2163,34 @@ class DashboardController {
       const btn = card.querySelector(".plan-btn");
       const badge = card.querySelector(".plan-badge");
       const isCurrent = plan === currentPlan;
+      const canRepurchase = isCurrent && this._canRepurchasePlan(plan);
 
       // Update button
       if (btn) {
-        btn.className = `plan-btn ${isCurrent ? "plan-btn-current" : btnClasses[plan]}`;
-        btn.setAttribute(
-          "onclick",
-          isCurrent ? "closeUpgradeModal()" : onclicks[plan],
-        );
-        btn.disabled = isCurrent;
-        btn.innerHTML = isCurrent
-          ? `<i class="fas fa-check-circle"></i> Đang sử dụng`
-          : `<i class="fas ${btnIcons[plan]}"></i> ${btnTexts[plan]}`;
+        if (canRepurchase) {
+          btn.className = `plan-btn ${btnClasses[plan]}`;
+          btn.setAttribute("onclick", onclicks[plan]);
+          btn.disabled = false;
+          btn.innerHTML = `<i class="fas fa-redo"></i> ${repurchaseTexts[plan] || `Mua thêm ${labels[plan]}`}`;
+        } else {
+          btn.className = `plan-btn ${isCurrent ? "plan-btn-current" : btnClasses[plan]}`;
+          btn.setAttribute(
+            "onclick",
+            isCurrent ? "closeUpgradeModal()" : onclicks[plan],
+          );
+          btn.disabled = isCurrent;
+          btn.innerHTML = isCurrent
+            ? `<i class="fas fa-check-circle"></i> Đang sử dụng`
+            : `<i class="fas ${btnIcons[plan]}"></i> ${btnTexts[plan]}`;
+        }
       }
 
       // Update badge
       if (badge) {
-        if (isCurrent) {
+        if (canRepurchase) {
+          badge.className = "plan-badge popular-badge";
+          badge.innerHTML = '<i class="fas fa-redo"></i> Mua thêm';
+        } else if (isCurrent) {
           badge.className = "plan-badge";
           badge.textContent = "Hiện tại";
         } else if (plan === "pro") {
@@ -2443,6 +2548,19 @@ class DashboardController {
       return;
     }
 
+    const currentPlan = String(this.auth.profile?.plan || "free").toLowerCase();
+    if (
+      plan === currentPlan &&
+      plan !== "free" &&
+      !this._canRepurchasePlan(plan)
+    ) {
+      UIManager.showNotification(
+        "Bạn còn quá nhiều token. Chỉ có thể mua lại gói khi token còn lại ≤ 10% hạn mức.",
+        "error",
+      );
+      return;
+    }
+
     const forceNew = Boolean(options.forceNew);
 
     // Development mode: support fake tokens by updating cached user locally
@@ -2547,6 +2665,7 @@ class DashboardController {
   }
 
   async loadInitialData() {
+    await fetchTranslationProviders();
     const profile = await this.auth.loadUserInfo();
     // If profile not available (invalid token or not logged in), show login prompt
     if (!profile) {
@@ -2567,6 +2686,7 @@ class DashboardController {
 
     // Update authentication UI
     this.auth.updateAuthUI();
+    this._updatePlanCardStates();
 
     // If user transferred and reloaded page, silently reconcile latest pending invoice.
     this.reconcilePendingInvoiceSilently();
@@ -2584,7 +2704,9 @@ function translateText() {
     !dashboard ||
     !dashboard.translation
   ) {
-    UIManager.showError("Ứng dụng chưa sẵn sàng. Vui lòng tải lại trang.");
+    UIManager.showError(
+      UIManager.uiT("msg.appNotReady", "App not ready. Please reload."),
+    );
     return;
   }
   dashboard.translation.translateText();
@@ -2796,29 +2918,14 @@ function applySettingsToUI(s) {
   if (defaultTarget && s.defaultTargetLang)
     defaultTarget.value = s.defaultTargetLang;
 
+  const plan = String(dashboard?.auth?.profile?.plan || "free").toLowerCase();
   const providerSel = document.getElementById("translationProvider");
   const uploadProviderSel = document.getElementById(
     "uploadTranslationProvider",
   );
-  const p = String(s.translationProvider || "google")
-    .trim()
-    .toLowerCase();
-
-  if (["google", "deepl", "gemini"].includes(p)) {
-    if (providerSel) {
-      providerSel.value = p;
-    }
-    if (uploadProviderSel) {
-      uploadProviderSel.value = p;
-    }
-  } else {
-    if (providerSel) {
-      providerSel.value = "google";
-    }
-    if (uploadProviderSel) {
-      uploadProviderSel.value = "google";
-    }
-  }
+  const picked = pickProviderForPlan(plan, s.translationProvider || "google");
+  if (providerSel) providerSel.value = picked;
+  if (uploadProviderSel) uploadProviderSel.value = picked;
 
   const autoSave = document.getElementById("autoSave");
   if (autoSave && typeof s.autoSave === "boolean")
@@ -2843,7 +2950,121 @@ function applySettingsToUI(s) {
   }
 }
 
+let _translationProvidersMeta = { models: [], default_by_plan: {} };
+
+async function fetchTranslationProviders() {
+  try {
+    const res = await fetch("/api/public/translation-providers");
+    if (!res.ok) return _translationProvidersMeta;
+    const data = await res.json();
+    _translationProvidersMeta = {
+      models: Array.isArray(data.models) ? data.models : [],
+      default_by_plan:
+        data.default_by_plan && typeof data.default_by_plan === "object"
+          ? data.default_by_plan
+          : {},
+    };
+  } catch (e) {
+    _translationProvidersMeta = {
+      models: [
+        {
+          id: "google",
+          label: "Google Translate",
+          plans: ["free", "pro", "promax"],
+        },
+        { id: "deepl", label: "DeepL", plans: ["pro", "promax"] },
+        {
+          id: "gemini",
+          label: "Gemini 2.5 Flash (OpenRouter)",
+          plans: ["promax"],
+        },
+      ],
+      default_by_plan: { free: "google", pro: "google", promax: "google" },
+    };
+  }
+  return _translationProvidersMeta;
+}
+
+function getAllowedProvidersForPlan(plan) {
+  const planNorm = String(plan || "free").trim().toLowerCase();
+  return (_translationProvidersMeta.models || []).filter((m) =>
+    (m.plans || []).map((x) => String(x).toLowerCase()).includes(planNorm),
+  );
+}
+
+function getAllowedProviderIds(plan) {
+  return getAllowedProvidersForPlan(plan).map((m) =>
+    String(m.id || "").toLowerCase(),
+  );
+}
+
+function pickProviderForPlan(plan, preferred) {
+  const allowed = getAllowedProviderIds(plan);
+  const pref = String(preferred || "")
+    .trim()
+    .toLowerCase();
+  if (allowed.includes(pref)) return pref;
+  const fallback = String(
+    (_translationProvidersMeta.default_by_plan || {})[plan] || "",
+  )
+    .trim()
+    .toLowerCase();
+  if (allowed.includes(fallback)) return fallback;
+  return allowed[0] || "google";
+}
+
+function syncTranslationProvidersForPlan(plan) {
+  if (!_translationProvidersMeta.models?.length) {
+    _translationProvidersMeta = {
+      models: [
+        {
+          id: "google",
+          label: "Google Translate",
+          plans: ["free", "pro", "promax"],
+        },
+        { id: "deepl", label: "DeepL", plans: ["pro", "promax"] },
+        {
+          id: "gemini",
+          label: "Gemini 2.5 Flash (OpenRouter)",
+          plans: ["promax"],
+        },
+      ],
+      default_by_plan: { free: "google", pro: "google", promax: "google" },
+    };
+  }
+  const planNorm = String(plan || "free").trim().toLowerCase();
+  const allowed = getAllowedProvidersForPlan(planNorm);
+  if (!allowed.length) return;
+
+  const s = loadSettings();
+  const preferred = pickProviderForPlan(
+    planNorm,
+    s.translationProvider || "google",
+  );
+
+  ["translationProvider", "uploadTranslationProvider"].forEach((selId) => {
+    const sel = document.getElementById(selId);
+    if (!sel) return;
+    sel.innerHTML = allowed
+      .map(
+        (m) =>
+          `<option value="${String(m.id).replace(/"/g, "&quot;")}">${String(m.label || m.id).replace(/</g, "&lt;")}</option>`,
+      )
+      .join("");
+    sel.value = pickProviderForPlan(planNorm, sel.value || preferred);
+  });
+
+  const next = pickProviderForPlan(planNorm, preferred);
+  if (next !== s.translationProvider) {
+    s.translationProvider = next;
+    localStorage.setItem("dashboard_settings", JSON.stringify(s));
+  }
+}
+
 function getSelectedTranslationProvider() {
+  const plan = String(dashboard?.auth?.profile?.plan || "free").toLowerCase();
+  const allowed = getAllowedProviderIds(plan);
+
   const uploadProviderSel = document.getElementById(
     "uploadTranslationProvider",
   );
@@ -2852,7 +3073,7 @@ function getSelectedTranslationProvider() {
   )
     .trim()
     .toLowerCase();
-  if (["google", "deepl", "gemini"].includes(fromUploadUI)) {
+  if (allowed.includes(fromUploadUI)) {
     return fromUploadUI;
   }
 
@@ -2860,25 +3081,18 @@ function getSelectedTranslationProvider() {
   const fromUI = String((providerSel && providerSel.value) || "")
     .trim()
     .toLowerCase();
-  if (["google", "deepl", "gemini"].includes(fromUI)) {
+  if (allowed.includes(fromUI)) {
     return fromUI;
   }
 
   const s = loadSettings();
-  const fromSettings = String((s && s.translationProvider) || "")
-    .trim()
-    .toLowerCase();
-  if (["google", "deepl", "gemini"].includes(fromSettings)) {
-    return fromSettings;
-  }
-  return "google";
+  return pickProviderForPlan(plan, s.translationProvider || "google");
 }
 
 function persistTranslationProvider(provider) {
-  const normalized = String(provider || "")
-    .trim()
-    .toLowerCase();
-  if (!["google", "deepl", "gemini"].includes(normalized)) {
+  const plan = String(dashboard?.auth?.profile?.plan || "free").toLowerCase();
+  const normalized = pickProviderForPlan(plan, provider);
+  if (!getAllowedProviderIds(plan).includes(normalized)) {
     return;
   }
 
@@ -2889,24 +3103,30 @@ function persistTranslationProvider(provider) {
 }
 
 async function deleteHistoryItem(id) {
-  if (confirm("Bạn có chắc muốn xóa bản dịch này?")) {
-    try {
-      const response = await fetch(`/api/history/${id}`, {
-        method: "DELETE",
-        headers: dashboard.auth.getAuthHeaders(),
-      });
+  const ok = await showConfirm({
+    title: "Xóa bản dịch",
+    message: "Bạn có chắc muốn xóa bản dịch này?",
+    confirmText: "Xóa",
+    danger: true,
+  });
+  if (!ok) return;
+  try {
+    const response = await fetch(`/api/history/${id}`, {
+      method: "DELETE",
+      headers: dashboard.auth.getAuthHeaders(),
+    });
 
-      if (response.ok) {
-        UIManager.showNotification("Đã xóa bản dịch!", "success");
-        dashboard.history.loadHistory();
-        dashboard.stats.loadStats();
-      } else {
-        throw new Error("Delete failed");
-      }
-    } catch (error) {
-      console.error("Error deleting history item:", error);
-      UIManager.showNotification("Có lỗi khi xóa bản dịch!", "error");
+    if (response.ok) {
+      UIManager.showNotification("Đã xóa bản dịch!", "success");
+      dashboard.history.loadHistory();
+      dashboard.auth.loadUserInfo();
+      dashboard.stats.loadStats();
+    } else {
+      throw new Error("Delete failed");
     }
+  } catch (error) {
+    console.error("Error deleting history item:", error);
+    UIManager.showNotification("Có lỗi khi xóa bản dịch!", "error");
   }
 }
 

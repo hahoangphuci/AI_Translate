@@ -45,6 +45,7 @@ from app.routers.history import history_bp
 from app.routers.ai import ai_bp
 from app.routers.admin import admin_bp
 from app.routers.contact import contact_bp
+from app.routers.public import public_bp
 
 # Đường dẫn tới thư mục frontend
 FRONTEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '../frontend'))
@@ -183,38 +184,85 @@ app.register_blueprint(payment_bp, url_prefix='/api/payment')
 app.register_blueprint(history_bp, url_prefix='/api/history')
 app.register_blueprint(admin_bp, url_prefix='/api/admin')
 app.register_blueprint(contact_bp, url_prefix='/api/contact')
+app.register_blueprint(public_bp, url_prefix='/api/public')
 # AI/config endpoints
 app.register_blueprint(ai_bp, url_prefix='/api/ai')
+
+
+def _serve_page_html(filename):
+    resp = send_from_directory(PAGES_DIR, filename)
+    resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    resp.headers['Pragma'] = 'no-cache'
+    return resp
+
 
 # Route cho trang chủ trả về home.html
 @app.route('/')
 def home():
-    return send_from_directory(PAGES_DIR, 'home.html')
+    return _serve_page_html('home.html')
 
 # Route cho trang đăng ký/đăng nhập
 @app.route('/auth')
 def auth_page():
-    return send_from_directory(PAGES_DIR, 'auth.html')
+    return _serve_page_html('auth.html')
 
 # Route cho trang dashboard
 @app.route('/dashboard')
 def dashboard_page():
-    return send_from_directory(PAGES_DIR, 'dashboard.html')
+    return _serve_page_html('dashboard.html')
 
 # Route cho trang about
 @app.route('/about')
 def about_page():
-    return send_from_directory(PAGES_DIR, 'about.html')
+    return _serve_page_html('about.html')
 
 # Route cho trang contact
 @app.route('/contact')
 def contact_page():
-    return send_from_directory(PAGES_DIR, 'contact.html')
+    return _serve_page_html('contact.html')
+
+# Trang pháp lý (Google Play / App Store)
+@app.route('/privacy')
+def privacy_page():
+    return _serve_page_html('privacy.html')
+
+@app.route('/terms')
+def terms_page():
+    return _serve_page_html('terms.html')
+
+@app.route('/ai-terms')
+def ai_terms_page():
+    return _serve_page_html('ai-terms.html')
+
+@app.route('/payment-policy')
+def payment_policy_page():
+    return _serve_page_html('payment-policy.html')
+
+@app.route('/data-deletion')
+def data_deletion_page():
+    return _serve_page_html('data-deletion.html')
+
+@app.route('/support')
+def support_page():
+    return _serve_page_html('support.html')
+
+# Trang tài liệu / hướng dẫn
+@app.route('/installation')
+def installation_page():
+    return send_from_directory(PAGES_DIR, 'installation.html')
+
+@app.route('/user-guide')
+def user_guide_page():
+    return send_from_directory(PAGES_DIR, 'user-guide.html')
 
 # Route cho trang profile
 @app.route('/profile')
 def profile_page():
     return send_from_directory(PAGES_DIR, 'profile.html')
+
+@app.route('/account-pending-delete')
+def account_pending_delete_page():
+    return send_from_directory(PAGES_DIR, 'account-pending-delete.html')
 
 # Route cho trang history
 @app.route('/history')
@@ -246,10 +294,19 @@ def serve_js(filename):
     resp.headers['Cache-Control'] = 'no-store'
     return resp
 
+@app.route('/config/<path:filename>')
+def serve_config(filename):
+    config_dir = os.path.join(FRONTEND_DIR, 'config')
+    resp = send_from_directory(config_dir, filename)
+    resp.headers['Cache-Control'] = 'no-store'
+    return resp
+
 # Route phục vụ trực tiếp các file HTML (để tương thích với links trong HTML)
 @app.route('/<filename>.html')
 def serve_html(filename):
-    if filename in ['home', 'auth', 'dashboard', 'about', 'contact', 'profile', 'history']:
+    if filename in ['home', 'auth', 'dashboard', 'about', 'contact', 'profile', 'history',
+                    'privacy', 'terms', 'ai-terms', 'payment-policy', 'data-deletion', 'support',
+                    'installation', 'user-guide']:
         return send_from_directory(PAGES_DIR, f'{filename}.html')
     return jsonify({"error": "Page not found"}), 404
 
@@ -261,6 +318,15 @@ def serve_downloads(filename):
     import mimetypes
     mimetype, _ = mimetypes.guess_type(filename)
     return send_from_directory(downloads_dir, filename, as_attachment=True, mimetype=mimetype)
+
+@app.route('/avatars/<path:filename>')
+def serve_avatars(filename):
+    avatars_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'utils', 'avatars')
+    import mimetypes
+    mimetype, _ = mimetypes.guess_type(filename)
+    resp = send_from_directory(avatars_dir, filename, mimetype=mimetype or 'image/jpeg')
+    resp.headers['Cache-Control'] = 'public, max-age=86400'
+    return resp
 
 # API cho leaderboard (placeholder)
 @app.route('/api/games/leaderboard')

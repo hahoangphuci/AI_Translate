@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hướng dẫn sử dụng Web - AI Translation System</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/css/theme-dark.css" />
+    <link rel="stylesheet" href="/css/home.css" />
+    <link rel="stylesheet" href="/css/legal.css" />
+    <link rel="stylesheet" href="/css/docs.css" />
+    <link rel="stylesheet" href="/libs/fontawesome/css/all.min.css" />
+    <script src="/js/i18n_data.js"></script>
+    <script src="/js/i18n.js" defer></script>
+    <script src="/js/auth_state.js" defer></script>
+    <script src="/js/docs_lang.js" defer></script>
+  </head>
+  <body class="theme-dark">
+    <nav class="navbar">
+      <div class="nav-container">
+        <div class="nav-logo"><i class="fas fa-language"></i><span>AI Translator</span></div>
+        <div class="nav-links">
+          <a href="/" class="nav-link">Trang chủ</a>
+          <a href="/about" class="nav-link">Về chúng tôi</a>
+          <a href="/installation" class="nav-link">Cài đặt</a>
+          <a href="/contact" class="nav-link">Liên hệ</a>
+          <button class="btn-login" onclick="window.location.href = '/auth'">Đăng nhập</button>
+        </div>
+      </div>
+    </nav>
+
+    <section class="legal-page">
+      <div class="container">
+        <div class="legal-hero">
+          <h1>Hướng dẫn sử dụng Web</h1>
+          <p class="legal-meta">User Guide · Dashboard · Payment · History</p>
+        </div>
+
+        <nav class="docs-nav">
+          <a href="/installation">Cài đặt</a>
+          <a href="/user-guide" class="active">Sử dụng Web</a>
+          <a href="/support">FAQ</a>
+        </nav>
+
+        <div class="docs-lang-switch">
+          <button type="button" class="active" data-lang="en">English</button>
+          <button type="button" data-lang="vi">Tiếng Việt</button>
+        </div>
+
+        <!-- Vietnamese -->
+        <article class="legal-content glassmorphism docs-lang-panel" data-lang="vi">
+          <h2>1. Đăng nhập</h2>
+          <ol>
+            <li>Mở <a href="/">trang chủ</a> → nhấn <strong>Đăng nhập</strong></li>
+            <li>Chọn <strong>Google</strong> hoặc đăng ký email/mật khẩu</li>
+            <li>Tài khoản mới nhận gói dùng thử (token miễn phí)</li>
+          </ol>
+
+          <h2>2. Dashboard</h2>
+          <p>Sau đăng nhập, vào <a href="/dashboard">Dashboard</a>:</p>
+          <table>
+            <tr><th>Tab</th><th>Chức năng</th></tr>
+            <tr><td>Dịch văn bản</td><td>Nhập text, chọn ngôn ngữ, dịch tức thì (≤ 5000 ký tự)</td></tr>
+            <tr><td>Dịch tài liệu</td><td>Upload PDF hoặc Word (.docx) (≤ 50MB)</td></tr>
+            <tr><td>Dịch ảnh</td><td>Upload hoặc Ctrl+V → OCR → dịch</td></tr>
+            <tr><td>Cài đặt</td><td>Chọn API: Google / DeepL / Gemini</td></tr>
+            <tr><td>Thanh toán</td><td>Nạp token qua QR chuyển khoản</td></tr>
+          </table>
+
+          <h2>3. Dịch văn bản</h2>
+          <ol>
+            <li>Chọn ngôn ngữ nguồn (hoặc <em>Tự động</em>) và ngôn ngữ đích</li>
+            <li>Nhập nội dung → <strong>Dịch</strong></li>
+            <li>Sao chép hoặc tải kết quả; dùng nút hoán đổi để đảo chiều dịch</li>
+          </ol>
+
+          <h2>4. Dịch tài liệu</h2>
+          <ol>
+            <li>Kéo thả hoặc chọn file PDF/DOCX/…</li>
+            <li>Chọn ngôn ngữ đích; tuỳ chọn OCR ảnh nhúng, chế độ song ngữ</li>
+            <li>Nhấn <strong>Dịch</strong> → chờ tiến trình → <strong>Tải xuống</strong></li>
+          </ol>
+          <p>Hệ thống cố giữ màu chữ, in đậm, in nghiêng, bảng và bố cục. PDF phức tạp xử lý qua pipeline PDF→DOCX→PDF.</p>
+
+          <h2>5. Dịch ảnh (OCR)</h2>
+          <ol>
+            <li>Tab dịch ảnh → upload hoặc dán ảnh (Ctrl+V)</li>
+            <li>OCR trích xuất chữ → chọn ngôn ngữ đích → Dịch</li>
+          </ol>
+
+          <h2>6. Token &amp; thanh toán</h2>
+          <ul>
+            <li><strong>Token</strong> bị trừ mỗi lần dịch (theo ký tự/nội dung)</li>
+            <li>Xem số dư trên Dashboard hoặc <a href="/profile">Profile</a></li>
+            <li>Nâng cấp <strong>Pro / Pro Max</strong>: tab Thanh toán → quét QR → chuyển khoản đúng <strong>nội dung CK</strong></li>
+            <li>Hệ thống tự xác nhận qua SePay (vài phút)</li>
+          </ul>
+
+          <h2>7. Lịch sử</h2>
+          <p>Menu <a href="/history">Lịch sử</a> — xem lại, tải lại hoặc xóa bản dịch cũ.</p>
+
+          <h2>8. Hỗ trợ</h2>
+          <ul>
+            <li><a href="/support">FAQ</a> · <a href="/contact">Liên hệ</a></li>
+            <li>Email: <a href="mailto:support@aitranslator.vn">support@aitranslator.vn</a></li>
+            <li>Xóa tài khoản: <a href="/data-deletion">Chính sách xóa dữ liệu</a></li>
+          </ul>
+
+          <p class="legal-box">Tài liệu đầy đủ: <code>docs/USER_GUIDE.md</code> · <a href="/installation">Hướng dẫn cài đặt</a></p>
+        </article>
+
+        <!-- English -->
+        <article class="legal-content glassmorphism docs-lang-panel active" data-lang="en">
+          <h2>1. Sign in</h2>
+          <ol>
+            <li>Open the <a href="/">home page</a> → click <strong>Sign in</strong></li>
+            <li>Use <strong>Google</strong> or email/password registration</li>
+            <li>New accounts receive a free trial token package</li>
+          </ol>
+
+          <h2>2. Dashboard</h2>
+          <p>After login, go to <a href="/dashboard">Dashboard</a>:</p>
+          <table>
+            <tr><th>Tab</th><th>Function</th></tr>
+            <tr><td>Text</td><td>Paste text, pick languages, instant translate (≤ 5000 chars)</td></tr>
+            <tr><td>Document</td><td>Upload PDF or Word (.docx) (≤ 50MB)</td></tr>
+            <tr><td>Image</td><td>Upload or Ctrl+V → OCR → translate</td></tr>
+            <tr><td>Settings</td><td>Choose API: Google / DeepL / Gemini</td></tr>
+            <tr><td>Payment</td><td>Top up tokens via bank transfer QR</td></tr>
+          </table>
+
+          <h2>3. Text translation</h2>
+          <ol>
+            <li>Select source (or <em>Auto</em>) and target language</li>
+            <li>Enter content → <strong>Translate</strong></li>
+            <li>Copy or download; use swap button to reverse direction</li>
+          </ol>
+
+          <h2>4. Document translation</h2>
+          <ol>
+            <li>Drag & drop or select PDF/DOCX/…</li>
+            <li>Choose target language; optional embedded OCR, bilingual mode</li>
+            <li>Click <strong>Translate</strong> → wait → <strong>Download</strong></li>
+          </ol>
+          <p>The system preserves colors, bold, italic, tables and layout. Complex PDFs use PDF→DOCX→PDF pipeline.</p>
+
+          <h2>5. Image translation (OCR)</h2>
+          <ol>
+            <li>Image tab → upload or paste (Ctrl+V)</li>
+            <li>OCR extracts text → select target language → Translate</li>
+          </ol>
+
+          <h2>6. Tokens &amp; payment</h2>
+          <ul>
+            <li><strong>Tokens</strong> are deducted per translation</li>
+            <li>Check balance on Dashboard or <a href="/profile">Profile</a></li>
+            <li>Upgrade <strong>Pro / Pro Max</strong>: Payment tab → scan QR → transfer with exact <strong>description</strong></li>
+            <li>SePay auto-confirms within minutes</li>
+          </ul>
+
+          <h2>7. History</h2>
+          <p><a href="/history">History</a> menu — view, re-download or delete past jobs.</p>
+
+          <h2>8. Support</h2>
+          <ul>
+            <li><a href="/support">FAQ</a> · <a href="/contact">Contact</a></li>
+            <li>Email: <a href="mailto:support@aitranslator.vn">support@aitranslator.vn</a></li>
+            <li>Account deletion: <a href="/data-deletion">Data deletion policy</a></li>
+          </ul>
+
+          <p class="legal-box">Full docs: <code>docs/USER_GUIDE.md</code> · <a href="/installation">Installation Guide</a></p>
+        </article>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <div class="container">
+        <div class="footer-content">
+          <div class="footer-section">
+            <h3>AI Translator</h3>
+            <p>Hệ thống dịch thuật thông minh với công nghệ AI tiên tiến</p>
+            <div class="social-links">
+              <a href="#"><i class="fab fa-facebook"></i></a>
+              <a href="#"><i class="fab fa-twitter"></i></a>
+              <a href="#"><i class="fab fa-linkedin"></i></a>
+              <a href="#"><i class="fab fa-github"></i></a>
+            </div>
+          </div>
+          <div class="footer-section">
+            <h3>Sản phẩm</h3>
+            <ul>
+              <li><a href="/#features">Tính năng</a></li>
+              <li><a href="/#pricing">Giá cả</a></li>
+              <li><a href="/about">Về chúng tôi</a></li>
+              <li><a href="/contact">Liên hệ</a></li>
+            </ul>
+          </div>
+          <div class="footer-section">
+            <h3>Hỗ trợ</h3>
+            <ul>
+              <li><a href="/installation">Hướng dẫn cài đặt</a></li>
+              <li><a href="/user-guide">Hướng dẫn sử dụng Web</a></li>
+              <li><a href="/support">Trung tâm hỗ trợ &amp; FAQ</a></li>
+              <li><a href="mailto:support@aitranslator.vn">support@aitranslator.vn</a></li>
+            </ul>
+          </div>
+          <div class="footer-section">
+            <h3>Pháp lý</h3>
+            <ul>
+              <li><a href="/terms">Điều khoản sử dụng</a></li>
+              <li><a href="/ai-terms">Điều khoản AI</a></li>
+              <li><a href="/privacy">Chính sách quyền riêng tư</a></li>
+              <li><a href="/payment-policy">Chính sách thanh toán</a></li>
+              <li><a href="/data-deletion">Chính sách xóa dữ liệu</a></li>
+            </ul>
+          </div>
+        </div>
+        <div class="footer-bottom">
+          <p>&copy; 2026 AI Translation System. All rights reserved.</p>
+        </div>
+      </div>
+    </footer>
+    <script src="/js/site_config.js"></script>
+    <script src="/js/inline_editor.js"></script>
+
+  </body>
+</html>

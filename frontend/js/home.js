@@ -3,11 +3,46 @@ document.addEventListener("DOMContentLoaded", function () {
   initializeHomePage();
 });
 
-function initializeHomePage() {
+async function initializeHomePage() {
   setupSmoothScrolling();
   setupPricingButtons();
-  setupHeroAnimations();
   setupMobileMenu();
+  await loadPublicStats();
+}
+
+async function loadPublicStats() {
+  try {
+    const response = await fetch("/api/public/stats", { cache: "no-store" });
+    if (!response.ok) {
+      console.warn("Public stats unavailable (HTTP", response.status, "). Restart backend: python run_api.py");
+      return;
+    }
+    const data = await response.json();
+    applyPublicStats(data);
+  } catch (error) {
+    console.warn("Failed to load public stats:", error);
+  }
+}
+
+function applyPublicStats(data) {
+  setStatTarget("statTranslations", data.translations_completed);
+  setStatTarget("statUsers", data.total_users);
+  setStatTarget("statLanguages", data.languages_count);
+
+  document.querySelectorAll("#stats .stat-number").forEach((el) => {
+    const rawTarget = el.getAttribute("data-target");
+    const target = Number(rawTarget);
+    el.textContent = Number.isFinite(target)
+      ? Math.round(target).toLocaleString()
+      : "0";
+  });
+}
+
+function setStatTarget(elementId, value) {
+  const el = document.getElementById(elementId);
+  if (!el) return;
+  const num = Number(value);
+  el.setAttribute("data-target", String(Number.isFinite(num) ? num : 0));
 }
 
 // Global helper used by pricing CTA buttons
@@ -103,83 +138,11 @@ function scrollToFeatures() {
 
 function setupPricingButtons() {
   // Pricing CTA buttons are wired via onclick="goToUpgrade(...)" in home.html.
-  // Keep this function for backward compatibility, but don't override CTA behavior.
 }
 
-function setupHeroAnimations() {
-  // Add intersection observer for animations
-  const observerOptions = {
-    threshold: 0.1,
-    rootMargin: "0px 0px -50px 0px",
-  };
-
-  const observer = new IntersectionObserver((entries) => {
-    entries.forEach((entry) => {
-      if (entry.isIntersecting) {
-        entry.target.classList.add("animate-in");
-        // Animate stats numbers
-        if (entry.target.classList.contains("stat-item")) {
-          animateNumber(entry.target.querySelector(".stat-number"));
-        }
-      }
-    });
-  }, observerOptions);
-
-  // Observe elements for animation
-  document
-    .querySelectorAll(".feature-card, .pricing-card, .benefit-card, .stat-item")
-    .forEach((card) => {
-      observer.observe(card);
-    });
-}
-
-function animateNumber(element) {
-  const target = parseInt(element.getAttribute("data-target"));
-  const duration = 2000; // 2 seconds
-  const step = target / (duration / 16); // 60fps
-  let current = 0;
-
-  const timer = setInterval(() => {
-    current += step;
-    if (current >= target) {
-      element.textContent = target.toLocaleString();
-      clearInterval(timer);
-    } else {
-      element.textContent = Math.floor(current).toLocaleString();
-    }
-  }, 16);
-}
-
-// Add some CSS animations dynamically
-const style = document.createElement("style");
-style.textContent = `
-    .feature-card, .pricing-card, .benefit-card {
-        opacity: 0;
-        transform: translateY(30px);
-        transition: opacity 0.6s ease, transform 0.6s ease;
-    }
-
-    .feature-card.animate-in, .pricing-card.animate-in, .benefit-card.animate-in {
-        opacity: 1;
-        transform: translateY(0);
-    }
-
-    .hero-content {
-        animation: fadeInUp 1s ease-out;
-    }
-
-    @keyframes fadeInUp {
-        from {
-            opacity: 0;
-            transform: translateY(30px);
-        }
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
-    }
-`;
-document.head.appendChild(style);
+window.addEventListener("siteLanguageChanged", () => {
+  loadPublicStats();
+});
 
 function quickTranslate() {
   const text = document.getElementById("quick-text").value.trim();

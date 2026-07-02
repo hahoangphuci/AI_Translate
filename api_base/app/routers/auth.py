@@ -65,6 +65,64 @@ def _google_oauth_credentials():
     sec = (vals.get("GOOGLE_CLIENT_SECRET") or sec or "").strip()
     return cid, sec
 
+
+def _google_client_secret_valid(secret: str) -> bool:
+    sec = (secret or '').strip()
+    if not sec or len(sec) < 10:
+        return False
+    upper = sec.upper()
+    if upper.startswith('THAY_') or upper.startswith('YOUR_') or upper.startswith('CHANGE_'):
+        return False
+    if 'CLIENT_SECRET' in upper and 'THAY' in upper:
+        return False
+    return True
+
+
+def _user_login_json(user, access_token):
+    return jsonify({
+        'access_token': access_token,
+        'user': {
+            'id': user.id,
+            'email': user.email,
+            'name': user.name,
+            'avatar_url': getattr(user, 'avatar_url', None),
+            'plan': user.plan or 'free',
+            'role': user.role or 'user',
+            'token_balance': int(user.token_balance or 0),
+        },
+    }), 200
+
+
+def _google_login_from_idinfo(idinfo):
+    """Create/update user from Google idinfo; return (user, jwt, error_response)."""
+    user_id = idinfo.get('sub')
+    email = idinfo.get('email')
+    name = idinfo.get('name')
+    if not user_id or not email:
+        return None, None, (jsonify({"error": "Missing user info in token"}), 400)
+
+    user = User.query.filter_by(google_id=user_id).first()
+    if not user:
+        user = User(google_id=user_id, email=email, name=name)
+        db.session.add(user)
+        db.session.commit()
+
+    try:
+        ip = (request.headers.get('X-Forwarded-For', '').split(',')[0].strip()
+              or request.remote_addr or None)
+        db.session.add(UserLoginLog(
+            user_id=user.id,
+            ip_address=ip,
+            user_agent=(request.headers.get('User-Agent') or '')[:500],
+        ))
+        db.session.commit()
+    except Exception:
+        pass
+
+    access_token = create_access_token(identity=user_id)
+    return user, access_token, None
+
+
 _OAUTH_STATE_SALT = "google-oauth-state-v1"
 _OAUTH_STATE_MAX_AGE = 900  # 15 phút
 
@@ -263,6 +321,62 @@ def google_callback():
         import traceback
         traceback.print_exc()
         return redirect(f'/auth?error=server_error')
+
+@auth_bp.route('/google/code', methods=['POST'])
+def google_code_exchange():
+    """Exchange GSI popup authorization code (redirect_uri=postmessage) for app JWT."""
+    import requests
+
+    data = request.get_json(silent=True) or {}
+    code = (data.get('code') or '').strip()
+    if not code:
+        return jsonify({"error": "Missing code"}), 400
+
+    client_id, client_secret = _google_oauth_credentials()
+    if not client_id or not client_secret or not _google_client_secret_valid(client_secret):
+        return jsonify({
+            "error": "missing_credentials",
+            "message": "Chưa cấu hình GOOGLE_CLIENT_SECRET trong api_base/.env",
+        }), 500
+
+    try:
+        response = requests.post('https://oauth2.googleapis.com/token', data={
+            'client_id': client_id,
+            'client_secret': client_secret,
+            'code': code,
+            'grant_type': 'authorization_code',
+            'redirect_uri': 'postmessage',
+        }, timeout=30)
+        token_data = response.json()
+        if response.status_code != 200:
+            print(f"[ERROR] Popup code exchange failed: {token_data}")
+            return jsonify({
+                "error": "token_exchange_failed",
+                "message": token_data.get('error_description') or token_data.get('error'),
+            }), 400
+
+        id_token = token_data.get('id_token')
+        if not id_token:
+            return jsonify({"error": "no_id_token"}), 400
+
+        idinfo = google.oauth2.id_token.verify_oauth2_token(
+            id_token,
+            google.auth.transport.requests.Request(),
+            client_id,
+        )
+        user, access_token, err = _google_login_from_idinfo(idinfo)
+        if err:
+            return err
+        return _user_login_json(user, access_token)
+
+    except ValueError as e:
+        print(f"[ERROR] Popup ID token verification failed: {e}")
+        return jsonify({"error": f"Invalid token: {str(e)}"}), 400
+    except Exception as e:
+        print(f"[ERROR] google_code_exchange: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": "server_error"}), 500
 
 @auth_bp.route('/google', methods=['POST'])
 def google_auth():

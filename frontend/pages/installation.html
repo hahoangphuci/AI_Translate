@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hướng dẫn cài đặt - AI Translation System</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/css/theme-dark.css" />
+    <link rel="stylesheet" href="/css/home.css" />
+    <link rel="stylesheet" href="/css/legal.css" />
+    <link rel="stylesheet" href="/css/docs.css" />
+    <link rel="stylesheet" href="/libs/fontawesome/css/all.min.css" />
+    <script src="/js/i18n_data.js"></script>
+    <script src="/js/i18n.js" defer></script>
+    <script src="/js/auth_state.js" defer></script>
+    <script src="/js/docs_lang.js" defer></script>
+  </head>
+  <body class="theme-dark">
+    <nav class="navbar">
+      <div class="nav-container">
+        <div class="nav-logo"><i class="fas fa-language"></i><span>AI Translator</span></div>
+        <div class="nav-links">
+          <a href="/" class="nav-link">Trang chủ</a>
+          <a href="/about" class="nav-link">Về chúng tôi</a>
+          <a href="/user-guide" class="nav-link">Hướng dẫn sử dụng</a>
+          <a href="/contact" class="nav-link">Liên hệ</a>
+          <button class="btn-login" onclick="window.location.href = '/auth'">Đăng nhập</button>
+        </div>
+      </div>
+    </nav>
+
+    <section class="legal-page">
+      <div class="container">
+        <div class="legal-hero">
+          <h1>Hướng dẫn cài đặt</h1>
+          <p class="legal-meta">Installation Guide · Developer setup</p>
+        </div>
+
+        <nav class="docs-nav">
+          <a href="/installation" class="active">Cài đặt</a>
+          <a href="/user-guide">Sử dụng Web</a>
+          <a href="/support">FAQ</a>
+        </nav>
+
+        <div class="docs-lang-switch">
+          <button type="button" class="active" data-lang="en">English</button>
+          <button type="button" data-lang="vi">Tiếng Việt</button>
+        </div>
+
+        <!-- Vietnamese -->
+        <article class="legal-content glassmorphism docs-lang-panel" data-lang="vi">
+          <h2>1. Yêu cầu hệ thống</h2>
+          <table>
+            <tr><th>Thành phần</th><th>Ghi chú</th></tr>
+            <tr><td>Python 3.10+</td><td>Backend Flask</td></tr>
+            <tr><td>MySQL / MariaDB</td><td>XAMPP hoặc standalone</td></tr>
+            <tr><td>Tesseract OCR</td><td>Bắt buộc nếu dùng dịch ảnh / PDF scan</td></tr>
+            <tr><td>Word hoặc LibreOffice</td><td>Tùy chọn — xuất PDF từ DOCX</td></tr>
+          </table>
+
+          <h2>2. Clone &amp; cài dependencies</h2>
+          <pre>git clone https://github.com/duyvo26/ai-translation-system.git
+cd ai-translation-system/api_base
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt</pre>
+
+          <h2>3. Database</h2>
+          <p>Tạo database <code>ai_translation</code> (utf8mb4). Chi tiết: file <code>docs/DATABASE_SETUP.md</code>.</p>
+          <pre>cd api_base
+python app/models/base_db.py --check
+python app/models/base_db.py</pre>
+
+          <h2>4. Cấu hình .env</h2>
+          <pre>cd api_base
+copy .env.example .env</pre>
+          <p>Chỉnh các biến quan trọng:</p>
+          <ul>
+            <li><code>DATABASE_URL</code> — kết nối MySQL</li>
+            <li><code>GOOGLE_CLIENT_ID</code>, <code>GOOGLE_CLIENT_SECRET</code> — đăng nhập Google</li>
+            <li><code>OPENAI_API_KEY</code> / <code>DEEPL_API_KEY</code> / <code>GEMINI_API_KEY</code> — dịch AI</li>
+            <li><code>TESSERACT_CMD</code>, <code>OCR_LANGS_DEFAULT=eng+vie</code> — OCR</li>
+            <li><code>SEPAY_API_KEY</code>, <code>PAYMENT_BANK_*</code> — thanh toán (xem docs/SEPAY_INTEGRATION.md)</li>
+          </ul>
+
+          <h2>5. Tesseract (Windows)</h2>
+          <ol>
+            <li>Tải Tesseract OCR và cài gói tiếng Anh + Việt</li>
+            <li>Set <code>TESSERACT_CMD=C:\\Program Files\\Tesseract-OCR\\tesseract.exe</code></li>
+          </ol>
+
+          <h2>6. Chạy server</h2>
+          <pre>cd api_base
+python run_api.py</pre>
+          <p>Mặc định: <a href="http://127.0.0.1:5055">http://127.0.0.1:5055</a> (frontend + API cùng port).</p>
+
+          <h2>7. Docker (tùy chọn)</h2>
+          <pre>docker-compose up --build</pre>
+
+          <h2>8. Xử lý sự cố</h2>
+          <table>
+            <tr><th>Lỗi</th><th>Cách xử lý</th></tr>
+            <tr><td>Port 5055 đã dùng</td><td>Dừng process cũ hoặc đổi BACKEND_PORT</td></tr>
+            <tr><td>MySQL failed</td><td>Bật MySQL XAMPP, kiểm tra DATABASE_URL</td></tr>
+            <tr><td>OCR lỗi</td><td>Kiểm tra TESSERACT_CMD và ngôn ngữ vie</td></tr>
+            <tr><td>Google login</td><td>Khớp GOOGLE_REDIRECT_URI với Google Console</td></tr>
+          </table>
+
+          <p class="legal-box">Tài liệu đầy đủ: <code>docs/INSTALLATION_GUIDE.md</code> · <a href="/user-guide">Hướng dẫn sử dụng Web</a></p>
+        </article>
+
+        <!-- English -->
+        <article class="legal-content glassmorphism docs-lang-panel active" data-lang="en">
+          <h2>1. System requirements</h2>
+          <table>
+            <tr><th>Component</th><th>Notes</th></tr>
+            <tr><td>Python 3.10+</td><td>Flask backend</td></tr>
+            <tr><td>MySQL / MariaDB</td><td>XAMPP or standalone</td></tr>
+            <tr><td>Tesseract OCR</td><td>Required for image / scanned PDF</td></tr>
+            <tr><td>Word or LibreOffice</td><td>Optional — DOCX to PDF</td></tr>
+          </table>
+
+          <h2>2. Clone &amp; install dependencies</h2>
+          <pre>git clone https://github.com/duyvo26/ai-translation-system.git
+cd ai-translation-system/api_base
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt</pre>
+
+          <h2>3. Database</h2>
+          <p>Create database <code>ai_translation</code> (utf8mb4). See <code>docs/DATABASE_SETUP.md</code>.</p>
+          <pre>cd api_base
+python app/models/base_db.py --check
+python app/models/base_db.py</pre>
+
+          <h2>4. Configure .env</h2>
+          <pre>cd api_base
+copy .env.example .env</pre>
+          <ul>
+            <li><code>DATABASE_URL</code> — MySQL connection</li>
+            <li><code>GOOGLE_CLIENT_ID</code>, <code>GOOGLE_CLIENT_SECRET</code> — Google OAuth</li>
+            <li><code>OPENAI_API_KEY</code> / <code>DEEPL_API_KEY</code> / <code>GEMINI_API_KEY</code> — AI translation</li>
+            <li><code>TESSERACT_CMD</code>, <code>OCR_LANGS_DEFAULT=eng+vie</code> — OCR</li>
+            <li><code>SEPAY_API_KEY</code>, <code>PAYMENT_BANK_*</code> — payments (see docs/SEPAY_INTEGRATION.md)</li>
+          </ul>
+
+          <h2>5. Tesseract (Windows)</h2>
+          <ol>
+            <li>Install Tesseract with English + Vietnamese packs</li>
+            <li>Set <code>TESSERACT_CMD=C:\\Program Files\\Tesseract-OCR\\tesseract.exe</code></li>
+          </ol>
+
+          <h2>6. Start server</h2>
+          <pre>cd api_base
+python run_api.py</pre>
+          <p>Default: <a href="http://127.0.0.1:5055">http://127.0.0.1:5055</a> (frontend + API on same port).</p>
+
+          <h2>7. Docker (optional)</h2>
+          <pre>docker-compose up --build</pre>
+
+          <h2>8. Troubleshooting</h2>
+          <table>
+            <tr><th>Issue</th><th>Fix</th></tr>
+            <tr><td>Port 5055 in use</td><td>Stop old process or change BACKEND_PORT</td></tr>
+            <tr><td>MySQL failed</td><td>Start MySQL, verify DATABASE_URL</td></tr>
+            <tr><td>OCR errors</td><td>Check TESSERACT_CMD and vie language</td></tr>
+            <tr><td>Google login</td><td>Match GOOGLE_REDIRECT_URI in Google Console</td></tr>
+          </table>
+
+          <p class="legal-box">Full docs: <code>docs/INSTALLATION_GUIDE.md</code> · <a href="/user-guide">Web User Guide</a></p>
+        </article>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <div class="container">
+        <div class="footer-content">
+          <div class="footer-section">
+            <h3>AI Translator</h3>
+            <p>Hệ thống dịch thuật thông minh với công nghệ AI tiên tiến</p>
+            <div class="social-links">
+              <a href="#"><i class="fab fa-facebook"></i></a>
+              <a href="#"><i class="fab fa-twitter"></i></a>
+              <a href="#"><i class="fab fa-linkedin"></i></a>
+              <a href="#"><i class="fab fa-github"></i></a>
+            </div>
+          </div>
+          <div class="footer-section">
+            <h3>Sản phẩm</h3>
+            <ul>
+              <li><a href="/#features">Tính năng</a></li>
+              <li><a href="/#pricing">Giá cả</a></li>
+              <li><a href="/about">Về chúng tôi</a></li>
+              <li><a href="/contact">Liên hệ</a></li>
+            </ul>
+          </div>
+          <div class="footer-section">
+            <h3>Hỗ trợ</h3>
+            <ul>
+              <li><a href="/installation">Hướng dẫn cài đặt</a></li>
+              <li><a href="/user-guide">Hướng dẫn sử dụng Web</a></li>
+              <li><a href="/support">Trung tâm hỗ trợ &amp; FAQ</a></li>
+              <li><a href="mailto:support@aitranslator.vn">support@aitranslator.vn</a></li>
+            </ul>
+          </div>
+          <div class="footer-section">
+            <h3>Pháp lý</h3>
+            <ul>
+              <li><a href="/terms">Điều khoản sử dụng</a></li>
+              <li><a href="/ai-terms">Điều khoản AI</a></li>
+              <li><a href="/privacy">Chính sách quyền riêng tư</a></li>
+              <li><a href="/payment-policy">Chính sách thanh toán</a></li>
+              <li><a href="/data-deletion">Chính sách xóa dữ liệu</a></li>
+            </ul>
+          </div>
+        </div>
+        <div class="footer-bottom">
+          <p>&copy; 2026 AI Translation System. All rights reserved.</p>
+        </div>
+      </div>
+    </footer>
+    <script src="/js/site_config.js"></script>
+    <script src="/js/inline_editor.js"></script>
+
+  </body>
+</html>

@@ -4,8 +4,10 @@ All endpoints require JWT + role == 'admin'.
 Admin inherits all user capabilities and additionally manages the system.
 """
 import json
+from datetime import datetime, timedelta
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from sqlalchemy import func
 from app.models import (
     db, User, Translation, Payment,
     ContactMessage, NewsletterSubscriber,
@@ -74,27 +76,90 @@ def _serialize_translation(t):
 # Dashboard stats
 # ─────────────────────────────────────────
 
+def _active_users_query():
+    """Users that still exist in the system (exclude permanently deleted accounts)."""
+    q = User.query
+    if hasattr(User, "account_status"):
+        q = q.filter(User.account_status != "deleted")
+    return q
+
+
+def _plan_distribution_counts() -> dict:
+    """Count users by plan; buckets are mutually exclusive and sum to active users."""
+    plan_counts = {'free': 0, 'pro': 0, 'promax': 0}
+    q = db.session.query(func.lower(User.plan), func.count(User.id))
+    if hasattr(User, "account_status"):
+        q = q.filter(User.account_status != "deleted")
+    rows = q.group_by(func.lower(User.plan)).all()
+    for plan, cnt in rows:
+        key = (plan or 'free').strip().lower()
+        if key in plan_counts:
+            plan_counts[key] += int(cnt or 0)
+        else:
+            plan_counts['free'] += int(cnt or 0)
+    return plan_counts
+
+
+def _chart_series_last_days(days: int = 7):
+    """Số liệu theo ngày cho biểu đồ admin (7 ngày gần nhất)."""
+    days = max(1, min(int(days or 7), 30))
+    today = datetime.utcnow().date()
+    labels = []
+    translations = []
+    users = []
+    revenue = []
+
+    for offset in range(days - 1, -1, -1):
+        day = today - timedelta(days=offset)
+        labels.append(day.strftime('%d/%m'))
+
+        translations.append(
+            Translation.query.filter(func.date(Translation.created_at) == day).count()
+        )
+        users.append(
+            _active_users_query().filter(func.date(User.created_at) == day).count()
+        )
+        rev = db.session.query(func.coalesce(func.sum(Payment.amount), 0)).filter(
+            Payment.status == 'completed',
+            func.date(Payment.created_at) == day,
+        ).scalar()
+        revenue.append(float(rev or 0))
+
+    return {
+        'labels': labels,
+        'translations_per_day': translations,
+        'users_per_day': users,
+        'revenue_per_day': revenue,
+    }
+
+
 @admin_bp.route('/stats', methods=['GET'])
 @admin_required
 def admin_stats():
     """Tổng quan hệ thống."""
-    total_users = User.query.count()
+    active_users = _active_users_query()
+    total_users = active_users.count()
     total_translations = Translation.query.count()
     total_payments = Payment.query.count()
     total_revenue = db.session.query(db.func.sum(Payment.amount)).filter_by(status='completed').scalar() or 0
-    admin_count = User.query.filter_by(role='admin').count()
-    plan_counts = {
-        'free': User.query.filter_by(plan='free').count(),
-        'pro': User.query.filter_by(plan='pro').count(),
-        'promax': User.query.filter_by(plan='promax').count(),
-    }
+    admin_count = active_users.filter(User.role == 'admin').count()
+    member_count = active_users.filter(User.role != 'admin').count()
+    plan_counts = _plan_distribution_counts()
+    charts = _chart_series_last_days(7)
+    charts['plan_distribution'] = plan_counts
     return jsonify({
         'total_users': total_users,
         'admin_count': admin_count,
+        'member_count': member_count,
         'total_translations': total_translations,
         'total_payments': total_payments,
         'total_revenue_vnd': float(total_revenue),
         'plan_distribution': plan_counts,
+        'role_distribution': {
+            'admin': admin_count,
+            'member': member_count,
+        },
+        'charts': charts,
     }), 200
 
 
@@ -568,6 +633,94 @@ def list_audit_log():
         'total': pagination.total,
         'pages': pagination.pages,
     }), 200
+
+
+# ─── Site / policy config (JSON + HTML files, no DB) ─────────
+
+@admin_bp.route('/site-config', methods=['GET'])
+@jwt_required()
+@admin_required
+def get_site_config():
+    from app.services.site_config_service import load_site_config, list_legal_pages
+    return jsonify({
+        'config': load_site_config(),
+        'legal_pages': list_legal_pages(),
+    }), 200
+
+
+@admin_bp.route('/site-config', methods=['PUT'])
+@jwt_required()
+@admin_required
+def put_site_config():
+    from app.services.site_config_service import update_site_config
+    data = request.get_json(silent=True) or {}
+    ok, message, meta = update_site_config(data)
+    if not ok:
+        return jsonify({'message': message}), 400
+    _log_admin_action(
+        _get_admin_id(),
+        'site_config_update',
+        target_type='site_config',
+        detail={'html_files_updated': (meta or {}).get('html_files_updated')},
+    )
+    return jsonify({'message': message, **(meta or {})}), 200
+
+
+@admin_bp.route('/site-config/pages/<slug>', methods=['GET'])
+@jwt_required()
+@admin_required
+def get_site_config_page(slug):
+    from app.services.site_config_service import get_legal_page_content
+    lang = request.args.get('lang', 'vi')
+    ok, message, meta = get_legal_page_content(slug, lang=lang)
+    if not ok:
+        return jsonify({'message': message}), 404
+    return jsonify(meta), 200
+
+
+@admin_bp.route('/site-config/pages/<slug>', methods=['PUT'])
+@jwt_required()
+@admin_required
+def put_site_config_page(slug):
+    from app.services.site_config_service import save_legal_page_content
+    data = request.get_json(silent=True) or {}
+    content = data.get('content', '')
+    lang = data.get('lang', 'vi')
+    ok, message = save_legal_page_content(slug, content, lang=lang)
+    if not ok:
+        return jsonify({'message': message}), 400
+    _log_admin_action(
+        _get_admin_id(),
+        'legal_page_update',
+        target_type='legal_page',
+        target_id=slug,
+    )
+    return jsonify({'message': message, 'slug': slug}), 200
+
+
+@admin_bp.route('/translation-config', methods=['GET'])
+@jwt_required()
+@admin_required
+def get_translation_config():
+    from app.services.translation_config_service import admin_translation_config
+    return jsonify({'config': admin_translation_config()}), 200
+
+
+@admin_bp.route('/translation-config', methods=['PUT'])
+@jwt_required()
+@admin_required
+def put_translation_config():
+    from app.services.translation_config_service import update_translation_config
+    data = request.get_json(silent=True) or {}
+    ok, message, meta = update_translation_config(data)
+    if not ok:
+        return jsonify({'message': message}), 400
+    _log_admin_action(
+        _get_admin_id(),
+        'translation_config_update',
+        target_type='translation_config',
+    )
+    return jsonify({'message': message, **(meta or {})}), 200
 
 
 def _log_admin_action(admin_id, action, target_type=None, target_id=None, detail=None):

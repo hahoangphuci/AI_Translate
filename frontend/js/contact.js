@@ -182,15 +182,15 @@ async function handleContactSubmit(event) {
     return;
   }
 
-  // Collect form data
+  // Collect form data (optional fields may be absent on some page variants)
   const formData = {
-    firstName: document.getElementById("contact-firstname").value,
-    lastName: document.getElementById("contact-lastname").value,
-    email: document.getElementById("contact-email").value,
-    company: document.getElementById("contact-company").value,
-    subject: document.getElementById("contact-subject").value,
-    message: document.getElementById("contact-message").value,
-    newsletter: document.getElementById("contact-newsletter").checked,
+    firstName: form.querySelector("#contact-firstname")?.value?.trim() ?? "",
+    lastName: form.querySelector("#contact-lastname")?.value?.trim() ?? "",
+    email: form.querySelector("#contact-email")?.value?.trim() ?? "",
+    company: form.querySelector("#contact-company")?.value?.trim() ?? "",
+    subject: form.querySelector("#contact-subject")?.value ?? "",
+    message: form.querySelector("#contact-message")?.value?.trim() ?? "",
+    newsletter: form.querySelector("#contact-newsletter")?.checked ?? false,
   };
 
   // Show loading

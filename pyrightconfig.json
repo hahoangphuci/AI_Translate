@@ -1,0 +1,19 @@
+{
+  "include": ["api_base"],
+  "exclude": [
+    "**/node_modules",
+    "**/__pycache__",
+    "antenv",
+    "app_web_view",
+    "frontend/node_modules"
+  ],
+  "venvPath": "api_base",
+  "venv": ".venv",
+  "pythonVersion": "3.11",
+  "executionEnvironments": [
+    {
+      "root": "api_base",
+      "pythonVersion": "3.11"
+    }
+  ]
+}

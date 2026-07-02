@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tài khoản chờ xóa - AI Translator</title>
+    <link rel="stylesheet" href="/css/theme-dark.css" />
+    <link rel="stylesheet" href="/libs/fontawesome/css/all.min.css" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        font-family: Inter, sans-serif;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        background: radial-gradient(
+          ellipse at top,
+          rgba(139, 38, 53, 0.12),
+          transparent 55%
+        );
+      }
+      .card {
+        max-width: 520px;
+        width: 100%;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 20px;
+        padding: 32px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+      }
+      .icon {
+        width: 56px;
+        height: 56px;
+        border-radius: 16px;
+        background: rgba(255, 100, 100, 0.12);
+        color: #ff8a8a;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        margin-bottom: 20px;
+      }
+      h1 {
+        margin: 0 0 12px;
+        font-size: 1.35rem;
+        color: #fff;
+      }
+      p {
+        color: rgba(255, 255, 255, 0.65);
+        line-height: 1.7;
+        margin: 0 0 16px;
+      }
+      .scheduled {
+        color: #ffb86c;
+        font-weight: 600;
+      }
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 24px;
+      }
+      .btn {
+        border: none;
+        border-radius: 10px;
+        padding: 12px 18px;
+        font-weight: 600;
+        cursor: pointer;
+        font-size: 0.9rem;
+      }
+      .btn-restore {
+        background: linear-gradient(135deg, #00a8ff, #00ffd1);
+        color: #041018;
+      }
+      .btn-logout {
+        background: rgba(255, 255, 255, 0.06);
+        color: rgba(255, 255, 255, 0.85);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+      }
+      .otp-panel {
+        display: none;
+        margin-top: 20px;
+        padding-top: 20px;
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      .otp-panel.show {
+        display: block;
+      }
+      .otp-input {
+        width: 100%;
+        max-width: 220px;
+        letter-spacing: 8px;
+        text-align: center;
+        font-size: 1.4rem;
+        padding: 12px;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        background: rgba(0, 0, 0, 0.25);
+        color: #fff;
+        margin: 12px 0;
+      }
+      .msg {
+        margin-top: 12px;
+        font-size: 0.88rem;
+        min-height: 1.2em;
+      }
+      .msg.error {
+        color: #ff8a8a;
+      }
+      .msg.success {
+        color: #7ecfb3;
+      }
+    </style>
+    <script src="/js/auth_state.js" defer></script>
+  </head>
+  <body class="theme-dark">
+    <div class="card">
+      <div class="icon"><i class="fas fa-hourglass-half"></i></div>
+      <h1>Tài khoản đang chờ xóa</h1>
+      <p id="pendingMessage">
+        Tài khoản của bạn đang được lên lịch xóa. Nếu bạn muốn tiếp tục sử dụng
+        dịch vụ, vui lòng chọn <strong>Khôi phục tài khoản</strong>.
+      </p>
+      <p>
+        Ngày dự kiến xóa:
+        <span class="scheduled" id="scheduledAt">—</span>
+      </p>
+
+      <div class="actions">
+        <button type="button" class="btn btn-restore" id="btnRestore">
+          <i class="fas fa-undo"></i> Khôi phục tài khoản
+        </button>
+        <button type="button" class="btn btn-logout" id="btnLogout">
+          <i class="fas fa-sign-out-alt"></i> Đăng xuất
+        </button>
+      </div>
+
+      <div class="otp-panel" id="otpPanel">
+        <p>Nhập mã OTP 6 số đã gửi tới email của bạn (hiệu lực 5 phút):</p>
+        <input
+          type="text"
+          id="restoreOtp"
+          class="otp-input"
+          maxlength="6"
+          inputmode="numeric"
+          autocomplete="one-time-code"
+          placeholder="000000"
+        />
+        <div>
+          <button type="button" class="btn btn-restore" id="btnConfirmRestore">
+            Xác nhận khôi phục
+          </button>
+        </div>
+        <div class="msg" id="restoreMsg"></div>
+      </div>
+    </div>
+    <script src="/js/account_pending_delete.js" defer></script>
+  </body>
+</html>

@@ -15,6 +15,8 @@
     <link rel="stylesheet" href="/css/auth.css" />
     <link rel="stylesheet" href="/libs/fontawesome/css/all.min.css" />
     <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="/js/i18n_data.js"></script>
+    <script src="/js/i18n.js" defer></script>
     <script src="/js/auth_state.js" defer></script>
     <script>
       // Fetch Google Client ID from backend config
@@ -73,7 +75,7 @@
             </div>
 
             <div class="auth-methods">
-              <button class="google-auth-btn" onclick="signInWithGoogle()">
+              <button type="button" class="google-auth-btn" onclick="signInWithGoogle()">
                 <i class="fab fa-google"></i>
                 Đăng nhập bằng Google
               </button>
@@ -119,7 +121,7 @@
                   <span class="checkmark"></span>
                   Ghi nhớ đăng nhập
                 </label>
-                <a href="#" class="forgot-password">Quên mật khẩu?</a>
+                <a href="#" class="forgot-password" onclick="openForgotPassword(event)">Quên mật khẩu?</a>
               </div>
 
               <button type="submit" class="btn-primary auth-submit">
@@ -143,7 +145,7 @@
             </div>
 
             <div class="auth-methods">
-              <button class="google-auth-btn" onclick="signInWithGoogle()">
+              <button type="button" class="google-auth-btn" onclick="signInWithGoogle()">
                 <i class="fab fa-google"></i>
                 Đăng ký bằng Google
               </button>
@@ -176,12 +178,25 @@
               </div>
 
               <div class="form-group">
-                <label for="register-email">Email</label>
+                <label for="register-username">Username</label>
+                <input
+                  type="text"
+                  id="register-username"
+                  required
+                  minlength="3"
+                  maxlength="30"
+                  pattern="[A-Za-z0-9_]+"
+                  placeholder="vd: phuc_pro344"
+                />
+              </div>
+
+              <div class="form-group">
+                <label for="register-email">Gmail</label>
                 <input
                   type="email"
                   id="register-email"
                   required
-                  placeholder="Nhập email"
+                  placeholder="example@gmail.com"
                 />
               </div>
 
@@ -237,8 +252,10 @@
                   <input type="checkbox" id="agree-terms" required />
                   <span class="checkmark"></span>
                   Tôi đồng ý với
-                  <a href="#" target="_blank">Điều khoản sử dụng</a> và
-                  <a href="#" target="_blank">Chính sách bảo mật</a>
+                  <a href="/terms">Điều khoản sử dụng</a>,
+                  <a href="/ai-terms">Điều khoản AI</a>,
+                  <a href="/privacy">Chính sách quyền riêng tư</a> và
+                  <a href="/payment-policy">Chính sách thanh toán</a>
                 </label>
               </div>
 
@@ -251,9 +268,27 @@
               </div>
 
               <button type="submit" class="btn-primary auth-submit">
-                <i class="fas fa-user-plus"></i> Tạo tài khoản
+                <i class="fas fa-user-plus"></i> Gửi mã OTP
               </button>
             </form>
+
+            <div id="register-otp-step" class="otp-step hidden">
+              <div class="auth-header">
+                <h2>Xác thực Gmail</h2>
+                <p>Mã OTP 6 số đã gửi tới <strong id="register-otp-email"></strong> (hiệu lực 5 phút)</p>
+              </div>
+              <div class="form-group">
+                <label for="register-otp">Mã OTP</label>
+                <input type="text" id="register-otp" maxlength="6" inputmode="numeric" placeholder="000000" />
+              </div>
+              <button type="button" class="btn-primary auth-submit" onclick="verifyRegisterOtp()">
+                <i class="fas fa-check"></i> Xác nhận đăng ký
+              </button>
+              <button type="button" class="btn-secondary otp-resend-btn" onclick="resendRegisterOtp()">
+                Gửi lại mã OTP
+              </button>
+              <button type="button" class="btn-link" onclick="cancelRegisterOtp()">← Quay lại form đăng ký</button>
+            </div>
 
             <div class="auth-footer">
               <p>
@@ -266,6 +301,50 @@
       </div>
     </section>
 
-    <script src="/js/auth.js"></script>
+    <!-- Forgot password modal -->
+    <div id="forgot-modal" class="auth-modal hidden" onclick="if(event.target===this)closeForgotPassword()">
+      <div class="auth-modal-content">
+        <button type="button" class="auth-modal-close" onclick="closeForgotPassword()">&times;</button>
+
+        <div id="forgot-step-request">
+          <h2>Quên mật khẩu</h2>
+          <p>Nhập email hoặc username đã đăng ký</p>
+          <div class="form-group">
+            <label for="forgot-identifier">Email / Username</label>
+            <input type="text" id="forgot-identifier" placeholder="email@gmail.com hoặc username" />
+          </div>
+          <button type="button" class="btn-primary auth-submit" onclick="requestForgotPassword()">Gửi mã OTP</button>
+        </div>
+
+        <div id="forgot-step-otp" class="hidden">
+          <h2>Nhập mã OTP</h2>
+          <p>Mã đã gửi tới Gmail đã đăng ký (hiệu lực 10 phút)</p>
+          <div class="form-group">
+            <label for="forgot-otp">Mã OTP</label>
+            <input type="text" id="forgot-otp" maxlength="6" inputmode="numeric" placeholder="000000" />
+          </div>
+          <button type="button" class="btn-primary auth-submit" onclick="verifyForgotOtp()">Xác nhận OTP</button>
+          <button type="button" class="btn-secondary otp-resend-btn" onclick="resendForgotOtp()">Gửi lại mã OTP</button>
+        </div>
+
+        <div id="forgot-step-reset" class="hidden">
+          <h2>Đặt mật khẩu mới</h2>
+          <div class="form-group">
+            <label for="forgot-new-password">Mật khẩu mới</label>
+            <input type="password" id="forgot-new-password" minlength="8" placeholder="Ít nhất 8 ký tự" />
+          </div>
+          <div class="form-group">
+            <label for="forgot-confirm-password">Xác nhận mật khẩu</label>
+            <input type="password" id="forgot-confirm-password" minlength="8" placeholder="Nhập lại mật khẩu" />
+          </div>
+          <button type="button" class="btn-primary auth-submit" onclick="submitForgotReset()">Lưu mật khẩu mới</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="/js/auth.js?v=20260619"></script>
+    <script src="/js/site_config.js"></script>
+    <script src="/js/inline_editor.js"></script>
+
   </body>
 </html>

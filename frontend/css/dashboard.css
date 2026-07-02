@@ -2391,3 +2391,79 @@
     width: 100%;
   }
 }
+
+/* ===== Hamburger mobile cho dashboard ===== */
+.hamburger {
+  display: none;
+  flex-direction: column;
+  cursor: pointer;
+  padding: 5px;
+  gap: 5px;
+}
+.hamburger span {
+  display: block;
+  width: 25px;
+  height: 2px;
+  background: #fff;
+  border-radius: 2px;
+  transition: all 0.3s ease;
+}
+.hamburger.active span:nth-child(1) {
+  transform: rotate(45deg) translate(5px, 5px);
+}
+.hamburger.active span:nth-child(2) {
+  opacity: 0;
+}
+.hamburger.active span:nth-child(3) {
+  transform: rotate(-45deg) translate(5px, -5px);
+}
+
+@media (max-width: 768px) {
+  .hamburger {
+    display: flex;
+  }
+
+  .nav-links {
+    display: none;
+    position: absolute;
+    top: 70px;
+    left: 0;
+    right: 0;
+    background: rgba(8, 18, 48, 0.97);
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid rgba(0, 210, 210, 0.25);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    flex-direction: column;
+    padding: 16px 20px;
+    gap: 4px;
+    z-index: 999;
+  }
+
+  .nav-links.mobile-menu {
+    display: flex !important;
+  }
+
+  .nav-links .nav-link {
+    color: #e0eaff;
+    font-weight: 500;
+    padding: 12px 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    font-size: 1rem;
+  }
+
+  .nav-links .nav-link:last-of-type {
+    border-bottom: none;
+  }
+
+  .nav-links .nav-link:hover,
+  .nav-links .nav-link.active {
+    color: #00d2d2;
+  }
+
+  .nav-links #loginBtn,
+  .nav-links #logoutBtn {
+    margin-top: 8px;
+    width: 100%;
+    text-align: center;
+  }
+}

@@ -13,6 +13,8 @@
     <link rel="stylesheet" href="/css/theme-dark.css" />
     <link rel="stylesheet" href="/css/home.css" />
     <link rel="stylesheet" href="/libs/fontawesome/css/all.min.css" />
+    <script src="/js/i18n_data.js"></script>
+    <script src="/js/i18n.js" defer></script>
     <script src="/js/auth_state.js" defer></script>
     <style>
       /* ── Settings page ── */
@@ -886,26 +888,15 @@
                     <i class="fas fa-sliders-h"></i>
                   </div>
                   <div>
-                    <h3>Tùy chỉnh dịch thuật</h3>
-                    <p>Ngôn ngữ mặc định và hành vi hệ thống</p>
+                    <h3 data-i18n="profile.prefsTitle">
+                      Translation preferences
+                    </h3>
+                    <p data-i18n="profile.prefsSub">
+                      Default behavior and editor options
+                    </p>
                   </div>
                 </div>
                 <div class="settings-card-body">
-                  <div class="field-group">
-                    <label class="field-label" for="defaultTargetLang">
-                      <i class="fas fa-globe"></i> Ngôn ngữ dịch mặc định
-                    </label>
-                    <select id="defaultTargetLang" class="field-input">
-                      <option value="vi">Tiếng Việt</option>
-                      <option value="en">English</option>
-                      <option value="fr">Français</option>
-                      <option value="de">Deutsch</option>
-                      <option value="es">Español</option>
-                      <option value="ja">日本語</option>
-                      <option value="ko">한국어</option>
-                      <option value="zh">中文</option>
-                    </select>
-                  </div>
                   <div class="pref-row">
                     <div>
                       <div class="pref-label">Tự động lưu bản dịch</div>
@@ -992,15 +983,45 @@
                   </div>
                 </div>
                 <div class="settings-card-body">
-                  <div class="pref-row">
+                  <div class="pref-row" id="danger-clear-history">
                     <div>
                       <div class="pref-label">Xóa toàn bộ lịch sử dịch</div>
                       <div class="pref-sub">
                         Tất cả bản dịch đã lưu sẽ bị xóa vĩnh viễn
                       </div>
                     </div>
-                    <button class="btn-danger" onclick="clearHistory()">
+                    <button
+                      class="btn-danger"
+                      id="btn-clear-history"
+                      type="button"
+                      onclick="openClearHistoryModal()"
+                    >
                       <i class="fas fa-trash"></i> Xóa lịch sử
+                    </button>
+                  </div>
+                  <div
+                    class="pref-row"
+                    id="danger-delete-account"
+                    style="
+                      margin-top: 16px;
+                      padding-top: 16px;
+                      border-top: 1px solid rgba(255, 255, 255, 0.06);
+                    "
+                  >
+                    <div>
+                      <div class="pref-label">Yêu cầu xóa tài khoản</div>
+                      <div class="pref-sub">
+                        Tài khoản chuyển sang trạng thái chờ xóa 30 ngày — có
+                        thể khôi phục khi đăng nhập lại
+                      </div>
+                    </div>
+                    <button
+                      class="btn-danger"
+                      type="button"
+                      id="btn-delete-account"
+                      onclick="openDeleteAccountModal()"
+                    >
+                      <i class="fas fa-user-slash"></i> Yêu cầu xóa tài khoản
                     </button>
                   </div>
                 </div>
@@ -1014,6 +1035,282 @@
       <!-- /container -->
     </section>
 
+    <!-- Modal: xác nhận xóa lịch sử -->
+    <div
+      id="clearHistoryModal"
+      class="profile-modal-backdrop"
+      style="display: none"
+    >
+      <div
+        class="profile-modal"
+        role="dialog"
+        aria-labelledby="clearHistoryTitle"
+      >
+        <h3 id="clearHistoryTitle">
+          <i class="fas fa-exclamation-triangle"></i> Xóa toàn bộ lịch sử dịch
+        </h3>
+        <p
+          style="
+            color: rgba(255, 255, 255, 0.7);
+            line-height: 1.7;
+            margin: 0 0 16px;
+          "
+        >
+          Tất cả bản dịch đã lưu sẽ bị <strong>xóa vĩnh viễn</strong> và không
+          thể khôi phục. Bạn cần xác nhận bằng mã OTP gửi tới email đăng ký.
+        </p>
+        <div
+          style="
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            flex-wrap: wrap;
+          "
+        >
+          <button
+            type="button"
+            class="btn-cancel"
+            onclick="closeClearHistoryModal()"
+          >
+            Huỷ
+          </button>
+          <button
+            type="button"
+            class="btn-danger"
+            onclick="sendClearHistoryOtp()"
+          >
+            Tiếp tục — gửi OTP
+          </button>
+        </div>
+        <p
+          id="clearHistoryModalMsg"
+          style="margin-top: 12px; font-size: 0.85rem; min-height: 1.2em"
+        ></p>
+      </div>
+    </div>
+
+    <!-- Modal: nhập OTP xóa lịch sử -->
+    <div
+      id="clearHistoryOtpModal"
+      class="profile-modal-backdrop"
+      style="display: none"
+    >
+      <div class="profile-modal" role="dialog">
+        <h3><i class="fas fa-envelope"></i> Xác nhận bằng OTP</h3>
+        <p style="color: rgba(255, 255, 255, 0.65); line-height: 1.6">
+          Mã OTP 6 số đã gửi tới email của bạn (hiệu lực 5 phút).
+        </p>
+        <input
+          type="text"
+          id="clearHistoryOtpInput"
+          maxlength="6"
+          inputmode="numeric"
+          autocomplete="one-time-code"
+          placeholder="000000"
+          style="
+            width: 100%;
+            max-width: 220px;
+            letter-spacing: 8px;
+            text-align: center;
+            font-size: 1.35rem;
+            padding: 12px;
+            margin: 12px 0;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            background: rgba(0, 0, 0, 0.3);
+            color: #fff;
+          "
+        />
+        <div
+          style="
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 8px;
+          "
+        >
+          <button
+            type="button"
+            class="btn-cancel"
+            onclick="closeClearHistoryOtpModal()"
+          >
+            Huỷ
+          </button>
+          <button
+            type="button"
+            class="btn-danger"
+            onclick="confirmClearHistoryOtp()"
+          >
+            Xác nhận xóa
+          </button>
+        </div>
+        <p
+          id="clearHistoryOtpModalMsg"
+          style="margin-top: 12px; font-size: 0.85rem; min-height: 1.2em"
+        ></p>
+      </div>
+    </div>
+
+    <!-- Modal: xác nhận yêu cầu xóa tài khoản -->
+    <div
+      id="deleteAccountModal"
+      class="profile-modal-backdrop"
+      style="display: none"
+    >
+      <div
+        class="profile-modal"
+        role="dialog"
+        aria-labelledby="deleteAccountTitle"
+      >
+        <h3 id="deleteAccountTitle">
+          <i class="fas fa-exclamation-triangle"></i> Yêu cầu xóa tài khoản
+        </h3>
+        <p
+          style="
+            color: rgba(255, 255, 255, 0.7);
+            line-height: 1.7;
+            margin: 0 0 16px;
+          "
+        >
+          Tài khoản của bạn sẽ được chuyển sang trạng thái chờ xóa trong
+          <strong>30 ngày</strong>. Trong thời gian này, bạn có thể đăng nhập
+          lại để khôi phục tài khoản. Sau 30 ngày, tài khoản sẽ bị xóa hoặc vô
+          hiệu hóa vĩnh viễn.
+        </p>
+        <label class="pref-label" for="deleteReason">Lý do (tuỳ chọn)</label>
+        <textarea
+          id="deleteReason"
+          rows="3"
+          style="
+            width: 100%;
+            margin: 8px 0 16px;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: rgba(0, 0, 0, 0.25);
+            color: #fff;
+            resize: vertical;
+          "
+        ></textarea>
+        <div
+          style="
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            flex-wrap: wrap;
+          "
+        >
+          <button
+            type="button"
+            class="btn-cancel"
+            onclick="closeDeleteAccountModal()"
+          >
+            Huỷ
+          </button>
+          <button
+            type="button"
+            class="btn-danger"
+            onclick="sendDeleteAccountOtp()"
+          >
+            Tiếp tục — gửi OTP
+          </button>
+        </div>
+        <p
+          id="deleteAccountModalMsg"
+          style="margin-top: 12px; font-size: 0.85rem; min-height: 1.2em"
+        ></p>
+      </div>
+    </div>
+
+    <!-- Modal: nhập OTP xóa tài khoản -->
+    <div
+      id="deleteOtpModal"
+      class="profile-modal-backdrop"
+      style="display: none"
+    >
+      <div class="profile-modal" role="dialog">
+        <h3><i class="fas fa-envelope"></i> Xác nhận bằng OTP</h3>
+        <p style="color: rgba(255, 255, 255, 0.65); line-height: 1.6">
+          Mã OTP 6 số đã gửi tới email của bạn (hiệu lực 5 phút).
+        </p>
+        <input
+          type="text"
+          id="deleteOtpInput"
+          maxlength="6"
+          inputmode="numeric"
+          autocomplete="one-time-code"
+          placeholder="000000"
+          style="
+            width: 100%;
+            max-width: 220px;
+            letter-spacing: 8px;
+            text-align: center;
+            font-size: 1.35rem;
+            padding: 12px;
+            margin: 12px 0;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            background: rgba(0, 0, 0, 0.3);
+            color: #fff;
+          "
+        />
+        <div
+          style="
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 8px;
+          "
+        >
+          <button
+            type="button"
+            class="btn-cancel"
+            onclick="closeDeleteOtpModal()"
+          >
+            Huỷ
+          </button>
+          <button
+            type="button"
+            class="btn-danger"
+            onclick="confirmDeleteAccountOtp()"
+          >
+            Xác nhận xóa
+          </button>
+        </div>
+        <p
+          id="deleteOtpModalMsg"
+          style="margin-top: 12px; font-size: 0.85rem; min-height: 1.2em"
+        ></p>
+      </div>
+    </div>
+
+    <style>
+      .profile-modal-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.65);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        padding: 20px;
+      }
+      .profile-modal {
+        background: #0e1a2b;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 16px;
+        padding: 24px;
+        max-width: 480px;
+        width: 100%;
+      }
+      .profile-modal h3 {
+        margin: 0 0 12px;
+        color: #ffb4b4;
+        font-size: 1.1rem;
+      }
+    </style>
+
+    <script src="/js/toast.js"></script>
     <script src="/js/profile.js" defer></script>
     <script>
       // Panel navigation
@@ -1032,7 +1329,6 @@
       // Save preferences (localStorage)
       function savePrefs() {
         const prefs = {
-          defaultLang: document.getElementById("defaultTargetLang").value,
           autoSave: document.getElementById("autoSave").checked,
           showCharCount: document.getElementById("showCharCount").checked,
           defaultRich: document.getElementById("defaultRich").checked,
@@ -1043,7 +1339,6 @@
           const ds = JSON.parse(
             localStorage.getItem("dashboard_settings") || "{}",
           );
-          ds.defaultTargetLang = prefs.defaultLang;
           ds.autoSave = prefs.autoSave;
           localStorage.setItem("dashboard_settings", JSON.stringify(ds));
         } catch (e) {}
@@ -1061,8 +1356,6 @@
           const ds = JSON.parse(
             localStorage.getItem("dashboard_settings") || "{}",
           );
-          const lang = prefs.defaultLang || ds.defaultTargetLang;
-          if (lang) document.getElementById("defaultTargetLang").value = lang;
           const autoSave =
             prefs.autoSave !== undefined ? prefs.autoSave : ds.autoSave;
           if (autoSave !== undefined)
@@ -1075,6 +1368,18 @@
         } catch (e) {}
       }
 
+      function calcTokenUsageProfile(balance, cap) {
+        const bal = Math.max(0, parseInt(balance, 10) || 0);
+        const planCap = Math.max(1, parseInt(cap, 10) || 5000);
+        const used = Math.max(0, planCap - Math.min(bal, planCap));
+        const usedPct = Math.min(100, Math.round((used / planCap) * 100));
+        const remainingPct = Math.min(
+          100,
+          Math.round((Math.min(bal, planCap) / planCap) * 100),
+        );
+        return { balance: bal, cap: planCap, used, usedPct, remainingPct };
+      }
+
       // Populate plan panel from profile data
       function populatePlanPanel(data) {
         if (!data) return;
@@ -1082,7 +1387,7 @@
         const plan = String(data.plan || "free").toLowerCase();
         const cap = PLAN_CAPS[plan] || 5000;
         const balance = parseInt(data.token_balance || 0, 10);
-        const pct = Math.min(100, Math.round((balance / cap) * 100));
+        const usage = calcTokenUsageProfile(balance, cap);
 
         const icon = document.getElementById("planSettingsIcon");
         const nameEl = document.getElementById("planSettingsName");
@@ -1115,7 +1420,7 @@
             balance.toLocaleString("vi-VN") +
             " / " +
             cap.toLocaleString("vi-VN");
-        if (fillEl) fillEl.style.width = pct + "%";
+        if (fillEl) fillEl.style.width = usage.remainingPct + "%";
         if (priorityText) {
           const hasPriority = plan === "pro" || plan === "promax";
           priorityText.innerHTML = hasPriority
@@ -1166,21 +1471,209 @@
         window.location.href = "/";
       }
 
-      async function clearHistory() {
-        if (
-          !confirm(
-            "Xóa toàn bộ lịch sử dịch? Hành động này không thể hoàn tác.",
-          )
-        )
+      function openClearHistoryModal() {
+        const m = document.getElementById("clearHistoryModal");
+        const msg = document.getElementById("clearHistoryModalMsg");
+        if (msg) msg.textContent = "";
+        if (m) m.style.display = "flex";
+      }
+
+      function closeClearHistoryModal() {
+        const m = document.getElementById("clearHistoryModal");
+        if (m) m.style.display = "none";
+      }
+
+      function closeClearHistoryOtpModal() {
+        const m = document.getElementById("clearHistoryOtpModal");
+        if (m) m.style.display = "none";
+      }
+
+      async function sendClearHistoryOtp() {
+        const msg = document.getElementById("clearHistoryModalMsg");
+        if (msg) msg.textContent = "Đang gửi OTP...";
+        try {
+          const res = await fetch("/api/history/clear/request", {
+            method: "POST",
+            headers: profileAuthHeaders(),
+            body: JSON.stringify({}),
+          });
+          const data = await parseApiJson(res);
+          if (data._parseError) {
+            if (msg) {
+              msg.textContent =
+                res.status === 404
+                  ? "API chưa cập nhật. Hãy dừng và chạy lại run_api.py, rồi thử lại."
+                  : "Lỗi phản hồi từ server (HTTP " + res.status + ").";
+            }
+            return;
+          }
+          if (!res.ok) {
+            if (msg)
+              msg.textContent =
+                data.message || data.error || "Không gửi được OTP";
+            return;
+          }
+          closeClearHistoryModal();
+          const otpModal = document.getElementById("clearHistoryOtpModal");
+          const otpMsg = document.getElementById("clearHistoryOtpModalMsg");
+          if (otpMsg) otpMsg.textContent = data.message || "";
+          if (otpModal) otpModal.style.display = "flex";
+          const inp = document.getElementById("clearHistoryOtpInput");
+          if (inp) {
+            inp.value = "";
+            inp.focus();
+          }
+        } catch (e) {
+          if (msg) msg.textContent = "Lỗi kết nối.";
+        }
+      }
+
+      async function confirmClearHistoryOtp() {
+        const otpMsg = document.getElementById("clearHistoryOtpModalMsg");
+        const inp = document.getElementById("clearHistoryOtpInput");
+        const otp = inp ? inp.value.trim() : "";
+        if (otp.length !== 6) {
+          if (otpMsg) otpMsg.textContent = "Vui lòng nhập đủ 6 chữ số OTP.";
           return;
+        }
+        if (otpMsg) otpMsg.textContent = "Đang xác nhận...";
+        try {
+          const res = await fetch("/api/history/clear/confirm", {
+            method: "POST",
+            headers: profileAuthHeaders(),
+            body: JSON.stringify({ otp }),
+          });
+          const data = await parseApiJson(res);
+          if (data._parseError || !res.ok) {
+            if (otpMsg)
+              otpMsg.textContent =
+                data.message || data.error || "OTP không hợp lệ";
+            return;
+          }
+          closeClearHistoryOtpModal();
+          showToast(data.message || "Đã xóa toàn bộ lịch sử.", "success");
+        } catch (e) {
+          if (otpMsg) otpMsg.textContent = "Lỗi kết nối.";
+        }
+      }
+
+      function profileAuthHeaders() {
         const token = localStorage.getItem("token");
-        const headers = token ? { Authorization: `Bearer ${token}` } : {};
-        const resp = await fetch("/api/history/all", {
-          method: "DELETE",
-          headers,
-        });
-        const d = await resp.json().catch(() => ({}));
-        alert(resp.ok ? "Đã xóa toàn bộ lịch sử." : d.error || "Xóa thất bại.");
+        return {
+          "Content-Type": "application/json",
+          Authorization: token ? `Bearer ${token}` : "",
+        };
+      }
+
+      function openDeleteAccountModal() {
+        const m = document.getElementById("deleteAccountModal");
+        const msg = document.getElementById("deleteAccountModalMsg");
+        if (msg) msg.textContent = "";
+        if (m) m.style.display = "flex";
+      }
+
+      function closeDeleteAccountModal() {
+        const m = document.getElementById("deleteAccountModal");
+        if (m) m.style.display = "none";
+      }
+
+      function closeDeleteOtpModal() {
+        const m = document.getElementById("deleteOtpModal");
+        if (m) m.style.display = "none";
+      }
+
+      async function parseApiJson(res) {
+        const text = await res.text();
+        if (!text) return {};
+        try {
+          return JSON.parse(text);
+        } catch (e) {
+          return { _parseError: true, _raw: text.slice(0, 120) };
+        }
+      }
+
+      async function sendDeleteAccountOtp() {
+        const msg = document.getElementById("deleteAccountModalMsg");
+        const reasonEl = document.getElementById("deleteReason");
+        const reason = reasonEl ? reasonEl.value.trim() : "";
+        if (msg) msg.textContent = "Đang gửi OTP...";
+        try {
+          const res = await fetch("/api/auth/account/delete/request", {
+            method: "POST",
+            headers: profileAuthHeaders(),
+            body: JSON.stringify({ reason }),
+          });
+          const data = await parseApiJson(res);
+          if (data._parseError) {
+            if (msg) {
+              msg.textContent =
+                res.status === 404
+                  ? "API chưa cập nhật. Hãy dừng và chạy lại run_api.py, rồi thử lại."
+                  : "Lỗi phản hồi từ server (HTTP " + res.status + ").";
+            }
+            return;
+          }
+          if (!res.ok) {
+            if (msg)
+              msg.textContent =
+                data.message || data.error || "Không gửi được OTP";
+            return;
+          }
+          closeDeleteAccountModal();
+          const otpModal = document.getElementById("deleteOtpModal");
+          const otpMsg = document.getElementById("deleteOtpModalMsg");
+          if (otpMsg) otpMsg.textContent = data.message || "";
+          if (otpModal) otpModal.style.display = "flex";
+          const inp = document.getElementById("deleteOtpInput");
+          if (inp) {
+            inp.value = "";
+            inp.focus();
+          }
+        } catch (e) {
+          if (msg) msg.textContent = "Lỗi kết nối.";
+        }
+      }
+
+      async function confirmDeleteAccountOtp() {
+        const otpMsg = document.getElementById("deleteOtpModalMsg");
+        const inp = document.getElementById("deleteOtpInput");
+        const otp = inp ? inp.value.trim() : "";
+        if (otp.length !== 6) {
+          if (otpMsg) otpMsg.textContent = "Vui lòng nhập đủ 6 chữ số OTP.";
+          return;
+        }
+        if (otpMsg) otpMsg.textContent = "Đang xác nhận...";
+        try {
+          const res = await fetch("/api/auth/account/delete/confirm", {
+            method: "POST",
+            headers: profileAuthHeaders(),
+            body: JSON.stringify({ otp }),
+          });
+          const data = await parseApiJson(res);
+          if (data._parseError || !res.ok) {
+            if (otpMsg)
+              otpMsg.textContent =
+                data.message || data.error || "OTP không hợp lệ";
+            return;
+          }
+          closeDeleteOtpModal();
+          if (data.user)
+            localStorage.setItem("user", JSON.stringify(data.user));
+          localStorage.removeItem("token");
+          showToast(
+            data.message ||
+              "Yêu cầu xóa tài khoản đã được ghi nhận. Tài khoản của bạn sẽ được xóa sau 30 ngày. Trong thời gian này, bạn có thể đăng nhập lại để khôi phục tài khoản nếu thay đổi quyết định.",
+            "success",
+            {
+              duration: 3200,
+              onClose: function () {
+                window.location.href = "/auth";
+              },
+            },
+          );
+        } catch (e) {
+          if (otpMsg) otpMsg.textContent = "Lỗi kết nối.";
+        }
       }
 
       document.addEventListener("DOMContentLoaded", () => {

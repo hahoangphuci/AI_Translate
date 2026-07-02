@@ -19,6 +19,25 @@
         const merged = { ...(existing || {}), ...profile };
         localStorage.setItem("user", JSON.stringify(merged));
       }
+      if (
+        profile &&
+        profile.account_status === "pending_delete" &&
+        !window.location.pathname.includes("account-pending-delete") &&
+        !window.location.pathname.includes("/auth")
+      ) {
+        window.location.href = "/account-pending-delete";
+        return profile;
+      }
+      if (
+        profile &&
+        profile.account_status === "deleted" &&
+        !window.location.pathname.includes("/auth")
+      ) {
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        window.location.href = "/auth?error=account_deleted";
+        return null;
+      }
       return profile;
     } catch (e) {
       console.warn("Profile fetch failed", e);
@@ -65,6 +84,9 @@
     // Find nav container
     const navLinks = document.querySelector(".nav-links");
     if (!navLinks) return;
+
+    // Avoid duplicate user menu if init runs more than once
+    if (navLinks.querySelector(".nav-user")) return;
 
     // Remove existing login/register buttons
     navLinks
@@ -177,6 +199,12 @@
         window.location.reload();
       });
     }
+
+    if (window.SiteI18n) {
+      window.SiteI18n.injectLangSwitcher();
+      window.SiteI18n.applySiteLanguage(window.SiteI18n.getLang());
+    }
+    window.dispatchEvent(new CustomEvent("authUiReady"));
   }
 
   function setLoggedOutUI() {
@@ -193,13 +221,21 @@
     if (!navLinks.querySelector(".btn-login")) {
       const loginBtn = document.createElement("button");
       loginBtn.className = "btn-login";
-      loginBtn.textContent = "Đăng nhập";
+      loginBtn.textContent = window.SiteI18n
+        ? window.SiteI18n.t("nav.login")
+        : "Sign in";
       loginBtn.addEventListener(
         "click",
         () => (window.location.href = "/auth"),
       );
       navLinks.appendChild(loginBtn);
     }
+
+    if (window.SiteI18n) {
+      window.SiteI18n.injectLangSwitcher();
+      window.SiteI18n.applySiteLanguage(window.SiteI18n.getLang());
+    }
+    window.dispatchEvent(new CustomEvent("authUiReady"));
   }
 
   // ── Notification helpers ───────────────────────────────────────────────────
@@ -334,8 +370,20 @@
 
   // Run on DOM ready
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init);
+    document.addEventListener("DOMContentLoaded", () => {
+      init();
+      loadSiteConfigScript();
+    });
   } else {
     init();
+    loadSiteConfigScript();
+  }
+
+  function loadSiteConfigScript() {
+    if (document.querySelector('script[src="/js/site_config.js"]')) return;
+    const s = document.createElement("script");
+    s.src = "/js/site_config.js";
+    s.defer = true;
+    document.body.appendChild(s);
   }
 })();

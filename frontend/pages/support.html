@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hỗ trợ - AI Translation System</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/css/theme-dark.css" />
+    <link rel="stylesheet" href="/css/home.css" />
+    <link rel="stylesheet" href="/css/legal.css" />
+    <link rel="stylesheet" href="/css/inline_editor.css" />
+    <link rel="stylesheet" href="/css/contact.css" />
+    <link rel="stylesheet" href="/libs/fontawesome/css/all.min.css" />
+    <script src="/js/i18n_data.js"></script>
+    <script src="/js/i18n.js" defer></script>
+    <script src="/js/auth_state.js" defer></script>
+  </head>
+  <body class="theme-dark">
+    <nav class="navbar">
+      <div class="nav-container">
+        <div class="nav-logo"><i class="fas fa-language"></i><span>AI Translator</span></div>
+        <div class="nav-links">
+          <a href="/" class="nav-link">Trang chủ</a>
+          <a href="/support" class="nav-link active">Hỗ trợ</a>
+          <a href="/contact" class="nav-link">Liên hệ</a>
+          <button class="btn-login" onclick="window.location.href = '/auth'">Đăng nhập</button>
+        </div>
+      </div>
+    </nav>
+
+    <section class="legal-page">
+      <div class="container">
+        <div class="legal-hero">
+          <h1>Trung tâm hỗ trợ</h1>
+          <p class="legal-meta">Support · FAQ · Hướng dẫn sử dụng · <a href="/user-guide">User Guide</a> · <a href="/installation">Installation</a></p>
+        </div>
+        <nav class="legal-nav">
+          <a href="/privacy">Quyền riêng tư</a>
+          <a href="/terms">Điều khoản</a>
+          <a href="/ai-terms">Điều khoản AI</a>
+          <a href="/payment-policy">Thanh toán</a>
+          <a href="/data-deletion">Xóa dữ liệu</a>
+          <a href="/support" class="active">Hỗ trợ</a>
+        </nav>
+
+        <div class="legal-content glassmorphism" style="margin-bottom: 24px">
+          <h2>Liên hệ hỗ trợ</h2>
+          <div class="contact-info-item" style="margin-top: 16px">
+            <div class="info-icon"><i class="fas fa-envelope"></i></div>
+            <div class="info-content">
+              <h4>Email hỗ trợ</h4>
+              <p><a href="mailto:support@aitranslator.vn">support@aitranslator.vn</a></p>
+              <p style="opacity: 0.7; font-size: 0.9rem">Phản hồi trong 1–2 ngày làm việc</p>
+            </div>
+          </div>
+          <p style="margin-top: 16px">
+            Hoặc gửi tin qua <a href="/contact">form liên hệ</a>.
+            Giờ làm việc: Thứ 2–6, 8:00–18:00 (GMT+7).
+          </p>
+        </div>
+
+        <article class="legal-content glassmorphism">
+          <h2>Câu hỏi thường gặp (FAQ)</h2>
+
+          <h3>Ứng dụng dịch những định dạng nào?</h3>
+          <p>
+            Hỗ trợ dịch văn bản trực tiếp, tài liệu PDF và Word (.docx) (tối đa 50MB/file),
+            và hình ảnh qua OCR. Chế độ song ngữ: thường, liền kề, xuống dòng.
+          </p>
+
+          <h3>Làm sao đăng nhập bằng Google?</h3>
+          <p>
+            Chọn “Đăng nhập bằng Google” trên màn hình đăng nhập. Ứng dụng chỉ nhận email, tên và ảnh
+            đại diện công khai từ Google — không đăng bài thay bạn.
+          </p>
+
+          <h3>Token là gì? Làm sao nạp thêm?</h3>
+          <p>
+            Token dùng để trừ chi phí dịch (theo ký tự/tài liệu). Tài khoản mới có gói dùng thử miễn phí.
+            Nâng cấp Pro/Pro Max qua mục Thanh toán (SePay).
+          </p>
+
+          <h3>Bản dịch có giữ định dạng gốc không?</h3>
+          <p>
+            Hệ thống cố gắng giữ màu chữ, in đậm, in nghiêng, gạch chân và bố cục. Một số WordArt,
+            textbox phức tạp có thể cần hiệu chỉnh thủ công sau dịch.
+          </p>
+
+          <h3>Làm sao xóa tài khoản và dữ liệu?</h3>
+          <p>
+            Xem <a href="/data-deletion">Chính sách xóa dữ liệu</a>.
+            Gửi email tới support@aitranslator.vn với tiêu đề “Yêu cầu xóa tài khoản”.
+            Dữ liệu sẽ được xóa trong vòng 30 ngày.
+          </p>
+
+          <h3>Dữ liệu của tôi có được chia sẻ không?</h3>
+          <p>
+            Nội dung dịch được gửi tới nhà cung cấp AI (Google Translate, DeepL, Gemini) để xử lý.
+            Chi tiết tại <a href="/privacy">Chính sách quyền riêng tư</a>.
+          </p>
+
+          <h3>Gặp lỗi khi dịch file — phải làm sao?</h3>
+          <ol>
+            <li>Kiểm tra kết nối mạng và dung lượng file (&lt; 50MB)</li>
+            <li>Thử file nhỏ hơn hoặc định dạng PDF/Word chuẩn</li>
+            <li>Đăng xuất và đăng nhập lại</li>
+            <li>Gửi email kèm tên file, ảnh màn hình lỗi tới support@aitranslator.vn</li>
+          </ol>
+
+          <h2>Hướng dẫn nhanh</h2>
+          <p>
+            Xem hướng dẫn chi tiết:
+            <a href="/user-guide">Hướng dẫn sử dụng Web</a> ·
+            <a href="/installation">Hướng dẫn cài đặt</a>
+          </p>
+          <ol>
+            <li><strong>Dịch văn bản:</strong> Nhập/chép nội dung → chọn ngôn ngữ → Dịch</li>
+            <li><strong>Dịch tài liệu:</strong> Tải file lên → chọn ngôn ngữ đích → chờ xử lý → Tải xuống</li>
+            <li><strong>Dịch ảnh:</strong> Tải hoặc dán ảnh (Ctrl+V) → OCR → Dịch kết quả</li>
+            <li><strong>Lịch sử:</strong> Xem lại bản dịch cũ trong mục Lịch sử</li>
+          </ol>
+
+          <h2>Liên kết pháp lý</h2>
+          <ul>
+            <li><a href="/privacy">Chính sách quyền riêng tư</a></li>
+            <li><a href="/terms">Điều khoản sử dụng</a></li>
+            <li><a href="/ai-terms">Điều khoản sử dụng tính năng AI</a></li>
+            <li><a href="/payment-policy">Chính sách thanh toán</a></li>
+            <li><a href="/data-deletion">Chính sách xóa dữ liệu</a></li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <div class="container">
+        <div class="footer-bottom">
+          <p>&copy; 2026 AI Translation System. <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a> · <a href="/ai-terms">AI Terms</a> · <a href="/payment-policy">Payment</a> · <a href="/data-deletion">Data Deletion</a> · <a href="/support">Support</a></p>
+        </div>
+      </div>
+    </footer>
+    <script src="/js/site_config.js"></script>
+    <script src="/js/inline_editor.js" defer></script>
+
+  </body>
+</html>
