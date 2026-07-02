@@ -62,16 +62,6 @@ jobs:
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_B0113AD5896E4EF8B2B940E57D4F8B52 }}
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_54E7EB8FDF8F4DDA935EAFF754E02423 }}
 
-      - name: Resolve Azure resource group
-        run: |
-          RG=$(az webapp show --name aitranslate --query resourceGroup -o tsv)
-          if [ -z "$RG" ]; then
-            echo "Could not find resource group for app 'aitranslate'"
-            exit 1
-          fi
-          echo "RESOURCE_GROUP=$RG" >> "$GITHUB_ENV"
-          echo "Using resource group: $RG"
-
       - name: Create deployment zip
         run: >
           zip -r deploy.zip .
@@ -82,28 +72,34 @@ jobs:
           -x "*__pycache__/*"
           -x "*/.venv/*"
 
-      - name: Deploy to Azure Web App (retry on 409)
-        run: |
-          set +e
-          for attempt in 1 2 3; do
-            echo "Deploy attempt $attempt/3..."
-            az webapp deploy \
-              --resource-group "$RESOURCE_GROUP" \
-              --name aitranslate \
-              --src-path deploy.zip \
-              --type zip \
-              --clean true \
-              --restart true \
-              --async false
-            status=$?
-            if [ "$status" -eq 0 ]; then
-              echo "Deploy succeeded on attempt $attempt"
-              exit 0
-            fi
-            if [ "$attempt" -lt 3 ]; then
-              echo "Deploy failed (exit $status). Waiting 90s before retry..."
-              sleep 90
-            fi
-          done
-          echo "All deploy attempts failed"
-          exit 1
+      - name: Deploy to Azure Web App (attempt 1)
+        id: deploy1
+        uses: azure/webapps-deploy@v3
+        continue-on-error: true
+        with:
+          app-name: aitranslate
+          package: deploy.zip
+
+      - name: Wait before deploy retry
+        if: steps.deploy1.outcome == 'failure'
+        run: sleep 90
+
+      - name: Deploy to Azure Web App (attempt 2)
+        id: deploy2
+        uses: azure/webapps-deploy@v3
+        continue-on-error: true
+        if: steps.deploy1.outcome == 'failure'
+        with:
+          app-name: aitranslate
+          package: deploy.zip
+
+      - name: Wait before final deploy retry
+        if: steps.deploy1.outcome == 'failure' && steps.deploy2.outcome == 'failure'
+        run: sleep 90
+
+      - name: Deploy to Azure Web App (attempt 3)
+        if: steps.deploy1.outcome == 'failure' && steps.deploy2.outcome == 'failure'
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: aitranslate
+          package: deploy.zip
