@@ -1,14 +1,29 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.models import db, Translation, User
+from app.services.history_clear_service import (
+    confirm_clear_history,
+    request_clear_history_otp,
+)
 
 history_bp = Blueprint('history', __name__)
+
+
+def _resolve_user(identity):
+    """Lookup User from JWT identity (google_id or str(user.id))."""
+    user = User.query.filter_by(google_id=identity).first()
+    if user:
+        return user
+    try:
+        return User.query.filter_by(id=int(identity)).first()
+    except (TypeError, ValueError):
+        return None
+
 
 @history_bp.route('/', methods=['GET'])
 @jwt_required()
 def get_history():
-    user_google_id = get_jwt_identity()
-    user = User.query.filter_by(google_id=user_google_id).first()
+    user = _resolve_user(get_jwt_identity())
     if not user:
         return jsonify({'translations': [], 'total': 0, 'pages': 0, 'current_page': 1}), 200
 
@@ -51,11 +66,44 @@ def get_history():
         'current_page': pagination.page
     }), 200
 
+
+@history_bp.route('/clear/request', methods=['POST'])
+@jwt_required()
+def clear_history_request():
+    user = _resolve_user(get_jwt_identity())
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+    if not user.email:
+        return jsonify({'message': 'Tài khoản chưa có email để gửi OTP.'}), 400
+
+    ok, message, meta = request_clear_history_otp(user)
+    if not ok:
+        return jsonify({'message': message}), 400
+    return jsonify({'message': message, **(meta or {})}), 200
+
+
+@history_bp.route('/clear/confirm', methods=['POST'])
+@jwt_required()
+def clear_history_confirm():
+    user = _resolve_user(get_jwt_identity())
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+
+    data = request.get_json(silent=True) or {}
+    otp = (data.get('otp') or '').strip()
+    if len(otp) != 6 or not otp.isdigit():
+        return jsonify({'message': 'Vui lòng nhập đủ 6 chữ số OTP.'}), 400
+
+    ok, message, meta = confirm_clear_history(user, otp)
+    if not ok:
+        return jsonify({'message': message}), 400
+    return jsonify({'message': message, **(meta or {})}), 200
+
+
 @history_bp.route('/<int:translation_id>', methods=['DELETE'])
 @jwt_required()
 def delete_translation(translation_id):
-    user_google_id = get_jwt_identity()
-    user = User.query.filter_by(google_id=user_google_id).first()
+    user = _resolve_user(get_jwt_identity())
     if not user:
         return jsonify({"error": "User not found"}), 404
 

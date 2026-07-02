@@ -9,7 +9,7 @@ import zipfile
 import shutil
 import docx
 from collections import OrderedDict
-from threading import Lock
+from threading import Lock, local
 from werkzeug.utils import secure_filename
 from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
 from docx.enum.text import WD_TAB_ALIGNMENT, WD_TAB_LEADER
@@ -63,7 +63,16 @@ class FileService:
 
         self._translation_cache = OrderedDict()
         self._translation_cache_lock = Lock()
+        self._request_local = local()
         self._executor_cls = ThreadPoolExecutor
+
+    def _set_translation_cache_scope(self, scope: str | None) -> None:
+        scope = (str(scope or '').strip() or '-')
+        self._request_local.translation_cache_scope = scope
+
+    def _clear_translation_cache_scope(self) -> None:
+        if hasattr(self._request_local, 'translation_cache_scope'):
+            delattr(self._request_local, 'translation_cache_scope')
 
     def _make_translation_cache_key(self, text, target_lang, context=None):
         if text is None:
@@ -75,7 +84,10 @@ class FileService:
             return None
         lang = (str(target_lang or '').strip().lower() or 'auto')
         ctx = (str(context or '').strip().lower() or '-')
-        return (lang, ctx, src)
+        scope = '-'
+        if ctx.startswith('document_'):
+            scope = str(getattr(self._request_local, 'translation_cache_scope', '-') or '-')
+        return (lang, ctx, scope, src)
 
     def _cache_get(self, key):
         if key is None or self.translation_cache_max_entries <= 0:
@@ -195,25 +207,34 @@ class FileService:
         # Final attempt to raise helpful error
         raise last
 
-    def process_document(self, file_path, target_lang, progress_callback=None, *, ocr_images=False, ocr_langs=None, ocr_mode=None, bilingual_mode=None, bilingual_delimiter=None):
+    def process_document(self, file_path, target_lang, progress_callback=None, *, ocr_images=False, ocr_langs=None, ocr_mode=None, bilingual_mode=None, bilingual_delimiter=None, translation_provider=None):
         filename = os.path.basename(file_path)
         name, ext = os.path.splitext(filename)
 
-        if ext.lower() == '.pdf':
-            return self._process_pdf(
-                file_path,
-                target_lang,
-                progress_callback,
-                ocr_images=ocr_images,
-                ocr_langs=ocr_langs,
-                ocr_mode=ocr_mode,
-                bilingual_mode=bilingual_mode,
-                bilingual_delimiter=bilingual_delimiter,
-            )
-        elif ext.lower() == '.docx':
-            return self._process_docx(file_path, target_lang, progress_callback, ocr_images=ocr_images, ocr_langs=ocr_langs, ocr_mode=ocr_mode, bilingual_mode=bilingual_mode, bilingual_delimiter=bilingual_delimiter)
-        else:
-            raise ValueError("Unsupported file type")
+        mode_key = (str(bilingual_mode or 'none').strip().lower() or 'none')
+        delimiter_key = self._normalize_bilingual_delimiter(bilingual_delimiter)
+        provider_key = (str(translation_provider or '').strip().lower() or '-')
+        self._set_translation_cache_scope(
+            f"provider={provider_key};mode={mode_key};delimiter={delimiter_key};ext={ext.lower()}"
+        )
+        try:
+            if ext.lower() == '.pdf':
+                return self._process_pdf(
+                    file_path,
+                    target_lang,
+                    progress_callback,
+                    ocr_images=ocr_images,
+                    ocr_langs=ocr_langs,
+                    ocr_mode=ocr_mode,
+                    bilingual_mode=bilingual_mode,
+                    bilingual_delimiter=bilingual_delimiter,
+                )
+            elif ext.lower() == '.docx':
+                return self._process_docx(file_path, target_lang, progress_callback, ocr_images=ocr_images, ocr_langs=ocr_langs, ocr_mode=ocr_mode, bilingual_mode=bilingual_mode, bilingual_delimiter=bilingual_delimiter)
+            else:
+                raise ValueError("Unsupported file type")
+        finally:
+            self._clear_translation_cache_scope()
 
     def _process_pdf(self, file_path, target_lang, progress_callback=None, *, ocr_images=False, ocr_langs=None, ocr_mode=None, bilingual_mode=None, bilingual_delimiter=None):
         from .pdf_service import process_pdf
@@ -252,7 +273,11 @@ class FileService:
             return src or ''
         if not s:
             return dst or ''
-        return f"{src} {d} {dst}"
+        while s.endswith(d):
+            s = s[:-len(d)].rstrip()
+        while t.startswith(d):
+            t = t[len(d):].lstrip()
+        return f"{src.rstrip()} {d} {t}"
 
     def _process_docx(self, file_path, target_lang, progress_callback=None, *, ocr_images=False, ocr_langs=None, ocr_mode=None, bilingual_mode=None, bilingual_delimiter=None, from_pdf=False):
         from .docx_service import process_docx

@@ -1064,7 +1064,15 @@ class FileUploadManager {
   constructor(authManager) {
     this.auth = authManager;
     this.selectedFile = null;
+    this.pollInterval = null;
     this.setupFileUpload();
+  }
+
+  clearPollInterval() {
+    if (this.pollInterval) {
+      clearInterval(this.pollInterval);
+      this.pollInterval = null;
+    }
   }
 
   setupFileUpload() {
@@ -1162,6 +1170,9 @@ class FileUploadManager {
       return;
     }
 
+    this.clearPollInterval();
+    UIManager.hideSuccess();
+
     const targetLang = document.getElementById("uploadTargetLang").value;
     const uploadBtn = document.getElementById("uploadBtn");
     const uploadBtnText = document.getElementById("uploadBtnText");
@@ -1169,7 +1180,6 @@ class FileUploadManager {
 
     // Hide previous messages
     UIManager.hideError();
-    UIManager.hideSuccess();
 
     // Show loading state
     uploadBtnText.textContent = "Đang upload...";
@@ -1276,7 +1286,7 @@ class FileUploadManager {
         let notFoundCount = 0;
         let fetchErrorCount = 0;
         const MAX_FETCH_ERRORS = 15;
-        const interval = setInterval(async () => {
+        this.pollInterval = setInterval(async () => {
           try {
             let activePollUrl = pollUrl;
             let statusResp = await fetch(activePollUrl, {
@@ -1314,7 +1324,7 @@ class FileUploadManager {
               if (statusResp.status === 404) {
                 notFoundCount += 1;
                 if (notFoundCount >= 3) {
-                  clearInterval(interval);
+                  this.clearPollInterval();
                   UIManager.showError(
                     "Không tìm thấy tiến trình xử lý (404). Server có thể đã khởi động lại, vui lòng upload lại file.",
                   );
@@ -1348,7 +1358,7 @@ class FileUploadManager {
             progressText.textContent = statusData.message || "Đang xử lý...";
 
             if (statusData.status === "completed") {
-              clearInterval(interval);
+              this.clearPollInterval();
 
               // If fallback occurred, inform user
               if (statusData.fallback) {
@@ -1404,7 +1414,7 @@ class FileUploadManager {
             }
 
             if (statusData.status === "failed") {
-              clearInterval(interval);
+              this.clearPollInterval();
               const errMsg = statusData.error || "Đã có lỗi khi xử lý file";
               UIManager.showError(errMsg);
               // Show error in progress bar area instead of hiding it
@@ -1426,7 +1436,7 @@ class FileUploadManager {
               err,
             );
             if (fetchErrorCount >= MAX_FETCH_ERRORS) {
-              clearInterval(interval);
+              this.clearPollInterval();
               UIManager.showError(
                 "Mất kết nối đến server. Vui lòng kiểm tra server và thử lại.",
               );
@@ -1479,6 +1489,7 @@ class FileUploadManager {
   }
 
   resetUpload() {
+    this.clearPollInterval();
     document.getElementById("uploadProgress").style.display = "none";
     document.getElementById("fileInput").value = "";
     document.getElementById("fileInfo").style.display = "none";

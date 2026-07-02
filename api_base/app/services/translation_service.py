@@ -308,9 +308,18 @@ class TranslationService:
         """Get system prompt combining loaded file + dynamic language info."""
         if context == 'document_pdf':
             prompt = (
-                f"Translate this isolated PDF text line or fragment into {target_name}.\n"
+                f"You are a professional document translator. Translate this PDF text into {target_name}.\n"
+                "Translate the FULL sentence or phrase with natural meaning — NEVER word-by-word.\n"
+                "Preserve the exact meaning; do not guess, embellish, summarize, or add new ideas.\n"
                 "Strict layout mode: keep the reply as a single paragraph block unless the source "
                 "clearly contains intentional line breaks.\n"
+                "Preserve proper names as names, not literal meanings "
+                "(e.g. Việt Nam = Vietnam, Nam Cần Thơ, not Vietnam Male / South Can Tho).\n"
+                "Vietnamese compounds must keep idiomatic meaning "
+                "(e.g. đất nước = country, thắng cảnh = scenic spot, nổi tiếng = famous, "
+                "lòng hiếu khách = hospitality).\n"
+                "In Vietnamese form labels, translate \"Mẫu\" as \"Form\" (not \"Model\").\n"
+                "Preserve complete date meaning; do not omit day, month, or year.\n"
                 "Use concise wording when possible; preserve numbers, emails, URLs, identifiers, and symbols verbatim.\n"
                 "Do not add explanations, markdown, or labels.\n"
                 "Return only the translated text."
@@ -322,21 +331,27 @@ class TranslationService:
         if context == 'document_docx_batch':
             prompt = (
                 f"You are a professional document translator. "
-                f"Translate each text block to {target_name} with high accuracy.\n\n"
+                f"Translate each text block to {target_name} faithfully and accurately.\n\n"
                 f"INPUT: Multiple text blocks separated by <<<S>>>\n\n"
                 f"CRITICAL RULES:\n"
                 f"1. Output the SAME number of blocks in the SAME order, separated by <<<S>>>\n"
-                f"2. Translate MEANING accurately — natural, fluent {target_name}, not word-by-word\n"
-                f"3. Academic/technical terms must use correct domain terminology\n"
-                f"4. Preserve formatting: spacing, punctuation, newlines within blocks\n"
-                f"5. Keep VERBATIM: numbers, codes, URLs, camelCase/snake_case identifiers, "
+                f"2. Translate full phrases and sentences with natural meaning — NEVER word-by-word\n"
+                f"3. Preserve the exact meaning. Do not guess, embellish, summarize, or add new ideas\n"
+                f"4. Use correct academic/technical terminology; if a term is ambiguous, choose the most literal safe translation\n"
+                f"5. Preserve formatting: spacing, punctuation, newlines within blocks\n"
+                f"6. Keep VERBATIM: numbers, codes, URLs, camelCase/snake_case identifiers, "
                 f"email addresses, formulas, file paths\n"
-                f"6. Keep dot/underscore/dash runs (....., _____, -----) unchanged\n"
-                f"7. If a block is already in {target_name}, output it unchanged\n"
-                f"8. Do NOT add explanations, labels, markdown, or extra text\n"
-                f"9. Do NOT merge or split blocks — each <<<S>>> input block = one <<<S>>> output block\n\n"
-                f"QUALITY CHECK: Each translated block must read naturally in {target_name} "
-                f"while preserving the exact meaning of the original.\n\n"
+                f"7. Preserve proper names as names, not literal meanings (e.g. Việt Nam = Vietnam, Nam Cần Thơ, not South Can Tho / Vietnam Male)\n"
+                f"8. Vietnamese compounds must keep idiomatic meaning (e.g. đất nước = country, thắng cảnh = scenic spot, nổi tiếng = famous, lòng hiếu khách = hospitality)\n"
+                f"9. In Vietnamese form labels, translate \"Mẫu\" as \"Form\" (not \"Model\")\n"
+                f"10. Preserve complete date meaning; do not omit day, month, or year\n"
+                f"11. Keep dot/underscore/dash runs (....., _____, -----) unchanged\n"
+                f"12. Keep opaque placeholder tokens (\\uE000...\\uE001) unchanged — do not translate them\n"
+                f"13. If a block is already in {target_name}, output it unchanged\n"
+                f"14. Do NOT add explanations, labels, markdown, or extra text\n"
+                f"15. Do NOT merge or split blocks — each <<<S>>> input block = one <<<S>>> output block\n\n"
+                f"QUALITY CHECK: Each output block must preserve the original meaning exactly, "
+                f"even when the source is a short table cell or heading fragment.\n\n"
                 f"OUTPUT: Translated blocks separated by <<<S>>>"
             )
             if source_name:
@@ -346,9 +361,16 @@ class TranslationService:
         if context == 'document_docx_line':
             prompt = (
                 f"You are a professional document translator. Translate this text into {target_name}.\n"
-                f"Prioritize semantic accuracy and natural phrasing (not word-by-word).\n"
+                f"Translate the FULL sentence or phrase with natural meaning — NEVER word-by-word.\n"
+                f"Preserve the exact meaning; do not guess, embellish, summarize, or add new ideas.\n"
+                f"For short table cells/headings, use the most literal safe translation.\n"
+                f"Preserve proper names as names, not literal meanings (e.g. Việt Nam = Vietnam, Nam Cần Thơ, not Vietnam Male / South Can Tho).\n"
+                f"Vietnamese compounds must keep idiomatic meaning (e.g. đất nước = country, thắng cảnh = scenic spot, nổi tiếng = famous, lòng hiếu khách = hospitality).\n"
+                f"In Vietnamese form labels, translate \"Mẫu\" as \"Form\" (not \"Model\").\n"
+                f"Preserve complete date meaning; do not omit day, month, or year.\n"
                 f"Keep line breaks/spacing and punctuation structure stable.\n"
                 f"Preserve numbers, URLs, emails, IDs, code-like tokens, and placeholders verbatim.\n"
+                f"Keep opaque boundary tokens (\\uE000...\\uE001) unchanged — do not translate or remove them.\n"
                 f"Do not add explanations/labels/markdown.\n"
                 f"Return only translated text."
             )
@@ -373,7 +395,13 @@ class TranslationService:
 
         # Default: concise, deterministic prompt for chunk translation.
         prompt = (
-            f"Translate to {target_name}.\n"
+            f"You are a professional translator. Translate to {target_name}.\n"
+            f"Translate full phrases and sentences with natural meaning — NEVER word-by-word.\n"
+            f"Preserve the exact meaning; do not guess, embellish, summarize, or add new ideas.\n"
+            f"Vietnamese compounds must keep idiomatic meaning "
+            f"(e.g. đất nước = country, thắng cảnh = scenic spot, nổi tiếng = famous).\n"
+            f"Preserve proper names as names, not literal meanings "
+            f"(e.g. Việt Nam = Vietnam, not Vietnam Male).\n"
             f"Preserve paragraph structure, spacing, punctuation, and formatting.\n"
             f"Keep numbers, codes, URLs, camelCase unchanged.\n"
             f"Return ONLY translated text."
@@ -557,6 +585,14 @@ class TranslationService:
             r"\btieng viet\b",
             r"\bbao toan\b",
             r"\bdinh dang\b",
+            r"\bthuong mai dien tu\b",
+            r"\bco hoi\b",
+            r"\bthach thuc\b",
+            r"\bphat trien\b",
+            r"\btom tat\b",
+            r"\bbai viet\b",
+            r"\bthi truong\b",
+            r"\bgiao dich\b",
         )
         for pat in phrase_patterns:
             if re.search(pat, norm):
@@ -574,7 +610,10 @@ class TranslationService:
             'truong', 'khoa', 'sinh', 'vien', 'giang', 'lop',
             'mssv', 'mo', 'ta', 'dia', 'chi', 'dinh', 'dang',
             'bao', 'toan', 'viet', 'nam', 'can', 'tho',
-            'thap', 'cao', 'de', 'kho', 'trung', 'binh', 'linh', 'hoat'
+            'thap', 'cao', 'de', 'kho', 'trung', 'binh', 'linh', 'hoat',
+            'thuong', 'mai', 'dien', 'tu', 'hoi', 'thach', 'thuc',
+            'phat', 'trien', 'tom', 'tat', 'bai', 'thi', 'truong',
+            'giao', 'dich', 'hoi', 'nhap', 'chinh', 'sach'
         }
         for tok in tokens:
             if tok in viet_tokens:
@@ -621,6 +660,11 @@ class TranslationService:
             'cao': 'High',
             'thap': 'Low',
             'linh hoat': 'Flexible',
+            'dat nuoc': 'country',
+            'thang canh': 'scenic spot',
+            'noi tieng': 'famous',
+            'long hieu khach': 'hospitality',
+            'viet nam': 'Vietnam',
         }
 
         return glossary.get(key, '')
@@ -708,6 +752,8 @@ class TranslationService:
         # Cheap deterministic guards first.
         if target_root == "vi" and self._looks_vietnamese_text(s):
             return True
+        if target_root == "en" and self._looks_already_english_text(s):
+            return True
 
         # IMPORTANT: For text translation we default to non-AI checks only,
         # so this guard never spends OpenRouter/OpenAI tokens.
@@ -733,6 +779,65 @@ class TranslationService:
         except Exception:
             # Detection is best-effort; never block translation on detector errors.
             return False
+
+    def _looks_already_english_text(self, text: str) -> bool:
+        """Conservative detector for document fragments already in English."""
+        s = (text or "").strip()
+        if not s:
+            return False
+
+        # Bibliography/reference lines are often already English. Re-translating
+        # them changes titles, author names, journal names, and breaks citations.
+        if re.search(r"^\s*(?:\[\d+\]|\d{1,3}[.)])\s+", s):
+            if re.search(
+                r"\b(?:doi|journal|proceedings|conference|university|press|google|llc|index|report|"
+                r"development|consumer|trust|e-?commerce|vietnamese|vietnam)\b",
+                s,
+                flags=re.IGNORECASE,
+            ):
+                return True
+
+        if self._looks_vietnamese_text(s):
+            return False
+
+        # Short all-caps English headings.
+        if re.fullmatch(r"[A-Z0-9][A-Z0-9\s&/(),.:;\-]{2,80}", s):
+            english_heading_words = {
+                "references", "abstract", "introduction", "conclusion", "method",
+                "methods", "results", "discussion", "appendix", "table", "figure",
+                "chapter", "section", "contents",
+            }
+            words = {w.lower() for w in re.findall(r"[A-Z]{3,}", s)}
+            if words & english_heading_words:
+                return True
+
+        letters = re.findall(r"[A-Za-z]", s)
+        if len(letters) < 4:
+            return False
+
+        ascii_words = re.findall(r"[A-Za-z]{2,}", s)
+        if not ascii_words:
+            return False
+
+        english_stopwords = {
+            "the", "and", "of", "in", "to", "for", "with", "on", "by", "from",
+            "as", "is", "are", "was", "were", "that", "this", "these", "those",
+            "using", "used", "affecting", "consumer", "trust", "development",
+            "report", "index", "journal", "digital", "economy",
+        }
+        norm_words = [w.lower() for w in ascii_words]
+        stop_hits = sum(1 for w in norm_words if w in english_stopwords)
+        if stop_hits >= 2:
+            return True
+
+        # Mostly ASCII with no Vietnamese-like ASCII phrase: likely an English
+        # name/title/code fragment, so leave it untouched for EN target.
+        ascii_ratio = len(re.findall(r"[\x00-\x7F]", s)) / max(1, len(s))
+        if ascii_ratio >= 0.96 and not self._looks_vietnamese_like_text(s):
+            if len(norm_words) >= 3:
+                return True
+
+        return False
 
     def _should_skip_translation_request(self, text: str, source_lang: str, target_code: str) -> bool:
         s = "" if text is None else str(text)
@@ -1005,21 +1110,10 @@ class TranslationService:
             raise RuntimeError(f"Gemini translation failed: {e}") from e
 
     def _gemini_translate(self, text, source_lang, target_lang, target_code, *, context=None):
-        # Prefer direct Gemini API when GEMINI_API_KEY is configured.
-        # OpenRouter is kept as secondary fallback.
+        # Prefer OpenRouter (google/gemini-2.5-flash) when configured; direct Gemini API is fallback.
         direct_error = None
         openrouter_error = None
         openrouter_model = self._get_gemini_openrouter_model()
-
-        if self._gemini_api_key:
-            try:
-                return self._gemini_rest_translate(text, source_lang, target_lang, context=context)
-            except Exception as e:
-                direct_error = e
-                try:
-                    print(f"Gemini direct API failed, trying OpenRouter fallback: {e}")
-                except Exception:
-                    pass
 
         if self.openai_client and self._using_openrouter:
             try:
@@ -1036,21 +1130,31 @@ class TranslationService:
             except Exception as e:
                 openrouter_error = e
                 try:
-                    print(f"Gemini via OpenRouter failed: {e}")
+                    print(f"Gemini via OpenRouter failed, trying direct Gemini fallback: {e}")
                 except Exception:
                     pass
 
-        if direct_error is not None and openrouter_error is not None:
+        if self._gemini_api_key:
+            try:
+                return self._gemini_rest_translate(text, source_lang, target_lang, context=context)
+            except Exception as e:
+                direct_error = e
+                try:
+                    print(f"Gemini direct API failed: {e}")
+                except Exception:
+                    pass
+
+        if openrouter_error is not None and direct_error is not None:
             raise RuntimeError(
-                f"Gemini translation failed via direct Gemini API ({direct_error}) and OpenRouter ({openrouter_error})"
-            ) from openrouter_error
-        if direct_error is not None:
-            raise RuntimeError(f"Gemini translation failed via direct Gemini API ({direct_error})") from direct_error
+                f"Gemini translation failed via OpenRouter ({openrouter_error}) and direct Gemini API ({direct_error})"
+            ) from direct_error
         if openrouter_error is not None:
             raise RuntimeError(f"Gemini translation failed via OpenRouter ({openrouter_error})") from openrouter_error
+        if direct_error is not None:
+            raise RuntimeError(f"Gemini translation failed via direct Gemini API ({direct_error})") from direct_error
 
         # No Gemini route available at all.
-        raise RuntimeError("Gemini translation is not configured (missing GEMINI_API_KEY / OpenRouter client)")
+        raise RuntimeError("Gemini translation is not configured (missing OPENROUTER_API_KEY / GEMINI_API_KEY)")
 
     def translate_text(self, text, source_lang, target_lang, context=None, provider=None):
         if target_lang is None or not str(target_lang).strip():
@@ -1069,12 +1173,21 @@ class TranslationService:
             return str(text)
 
         provider_name = self._get_effective_translation_provider(provider)
+        document_context = str(context or '').strip().lower().startswith('document_')
+        allow_document_google_fallback = (
+            str(os.getenv('DOCUMENT_TRANSLATION_ALLOW_GOOGLE_FALLBACK', '0')).strip().lower()
+            in ('1', 'true', 'yes', 'on')
+        )
         provider_error = None
         if provider_name == 'deepl':
             try:
                 return self._deepl_translate(text, source_lang, target_lang)
             except Exception as e:
                 provider_error = e
+                if document_context and not allow_document_google_fallback:
+                    raise RuntimeError(
+                        f"DeepL failed and Google fallback is disabled for document quality: {e}"
+                    ) from e
                 try:
                     print(f"DeepL failed, falling back to Google Translate: {e}")
                 except Exception:
@@ -1097,6 +1210,10 @@ class TranslationService:
                     print(f"Gemini failed, falling back to Google Translate: {e}")
                 except Exception:
                     pass
+                if document_context and not allow_document_google_fallback:
+                    raise RuntimeError(
+                        f"Gemini failed and Google fallback is disabled for document quality: {e}"
+                    ) from e
 
         src_code = self._to_google_lang_code(source, fallback='auto')
         dst_code = self._to_google_lang_code(target_lang, fallback='')
@@ -2532,6 +2649,7 @@ class TranslationService:
                     ocr_mode=ocr_mode,
                     bilingual_mode=bilingual_mode,
                     bilingual_delimiter=bilingual_delimiter,
+                    translation_provider=translation_provider,
                 )
 
                 # Validate and normalize output to utils/download so the /downloads route can serve it.

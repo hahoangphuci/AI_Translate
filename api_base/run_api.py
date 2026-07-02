@@ -6,7 +6,6 @@ import socket
 import threading
 import webbrowser
 import warnings
-from urllib.parse import urlsplit, urlunsplit
 from dotenv import load_dotenv
 
 # ─── Logging ────────────────────────────────────────────────────────────────
@@ -65,35 +64,20 @@ app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-pro
 app.config.from_object('app.config.DevelopmentConfig')
 
 
-def _mask_db_uri(db_uri: str) -> str:
-    if not db_uri:
-        return ''
-    try:
-        parsed = urlsplit(db_uri)
-        if not parsed.scheme:
-            return db_uri
-        netloc = parsed.netloc
-        if '@' in netloc:
-            creds, host = netloc.rsplit('@', 1)
-            if ':' in creds:
-                user, _ = creds.split(':', 1)
-                netloc = f"{user}:***@{host}"
-        return urlunsplit((parsed.scheme, netloc, parsed.path, parsed.query, parsed.fragment))
-    except Exception:
-        return db_uri
+from app.db_bootstrap import mask_db_uri
 
-# Preflight: if MySQL URI uses PyMySQL, ensure the driver is installed.
-# This avoids a long SQLAlchemy traceback when the wrong interpreter/env is used.
+# Preflight: if still on MySQL after bootstrap, ensure PyMySQL is installed.
 _db_uri = (app.config.get('SQLALCHEMY_DATABASE_URI') or '').lower()
 if 'mysql+pymysql://' in _db_uri and importlib.util.find_spec('pymysql') is None:
     print("\n[ERROR] Missing dependency: 'pymysql' (PyMySQL).")
-    print("Your DATABASE_URL/SQLALCHEMY_DATABASE_URI uses 'mysql+pymysql://',")
-    print("but this Python environment does not have PyMySQL installed.")
+    print("Your DATABASE_URL uses 'mysql+pymysql://', but PyMySQL is not installed.")
     print("\nFix (run in the SAME interpreter you're using to start the app):")
     print("  python -m pip install PyMySQL")
-    print("  # or")
-    print("  python -m pip install -r api_base/requirements.txt")
+    print("  # or let the app use SQLite when MySQL/XAMPP is down (default fallback)")
     raise SystemExit(1)
+
+if app.config.get('DB_SQLITE_FALLBACK_USED'):
+    print(f"[db] Active database: {mask_db_uri(app.config.get('SQLALCHEMY_DATABASE_URI') or '')}")
 
 # Initialize extensions
 from app.models import db
@@ -108,63 +92,34 @@ with app.app_context():
         db.create_all()
     except SQLAlchemyError as e:
         _raw_db_uri = app.config.get('SQLALCHEMY_DATABASE_URI') or ''
-        _safe_db_uri = _mask_db_uri(_raw_db_uri)
+        _safe_db_uri = mask_db_uri(_raw_db_uri)
         print("\n[ERROR] Database initialization failed while creating tables.")
         print(f"DATABASE_URL: {_safe_db_uri or '(empty)'}")
-        print("This is usually caused by MySQL not running or invalid DB credentials/host/port.")
-        if _raw_db_uri.lower().startswith('mysql+pymysql://'):
-            print("\nQuick checks:")
-            print("  1) Start MySQL service (XAMPP/WAMP/Docker).")
-            print("  2) Verify host/port in api_base/.env (default is localhost:3306).")
-            print("  3) Verify username/password/database are correct.")
-            print("  4) Quick local fallback (SQLite):")
-            print("     DATABASE_URL=sqlite:///../instance/translation.db")
+        print("If using MySQL/XAMPP: start MySQL and verify api_base/.env credentials.")
+        print("Local dev fallback: stop MySQL and restart — app auto-switches to SQLite.")
         raise SystemExit(1) from e
 
-    # Schema migration for MySQL compatibility
+    from app.db_migrations import run_schema_migrations
     try:
-        if db.engine.dialect.name == 'mysql':
-            from sqlalchemy import text
-            with db.engine.begin() as conn:
-                # Check if avatar_url column exists in user table
-                result = conn.execute(text("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='user' AND COLUMN_NAME='avatar_url'"))
-                if not result.fetchone():
-                    conn.execute(text('ALTER TABLE user ADD COLUMN avatar_url VARCHAR(500)'))
-
-                # Add token_balance for prepaid token model
-                result = conn.execute(text("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='user' AND COLUMN_NAME='token_balance'"))
-                if not result.fetchone():
-                    conn.execute(text('ALTER TABLE user ADD COLUMN token_balance INT NOT NULL DEFAULT 5000'))
-
-                # Add password_hash for email/password login
-                result = conn.execute(text("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='user' AND COLUMN_NAME='password_hash'"))
-                if not result.fetchone():
-                    conn.execute(text('ALTER TABLE user ADD COLUMN password_hash VARCHAR(255) NULL'))
-
-                # Add admin_reply fields to contact_message
-                result = conn.execute(text("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='contact_message' AND COLUMN_NAME='admin_reply'"))
-                if not result.fetchone():
-                    conn.execute(text('ALTER TABLE contact_message ADD COLUMN admin_reply TEXT NULL'))
-                result = conn.execute(text("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='contact_message' AND COLUMN_NAME='replied_at'"))
-                if not result.fetchone():
-                    conn.execute(text('ALTER TABLE contact_message ADD COLUMN replied_at DATETIME NULL'))
+        run_schema_migrations(db)
     except Exception as e:
         print(f"[WARN] Schema check/migration failed: {e}")
 
     # Tạo tài khoản admin mặc định nếu chưa có
     try:
-        from app.models import User
+        from app.models import User as _User
         from werkzeug.security import generate_password_hash as _gph
         _ADMIN_EMAIL = os.getenv('ADMIN_ACCOUNT_EMAIL', 'admin@gmail.com')
         _ADMIN_PASS  = os.getenv('ADMIN_ACCOUNT_PASSWORD', 'admin123')
-        _admin = User.query.filter_by(email=_ADMIN_EMAIL).first()
+        _admin = _User.query.filter_by(email=_ADMIN_EMAIL).first()
         if not _admin:
-            _admin = User(
+            _admin = _User(
                 email=_ADMIN_EMAIL,
                 name='Admin',
                 password_hash=_gph(_ADMIN_PASS),
                 role='admin',
                 plan='promax',
+                email_verified=True,
             )
             db.session.add(_admin)
             db.session.commit()
@@ -175,6 +130,33 @@ with app.app_context():
             print(f"[init] Đã nâng quyền admin cho: {_ADMIN_EMAIL}")
     except Exception as e:
         print(f"[WARN] Không thể tạo admin mặc định: {e}")
+
+    # Scheduled account deletion (pending_delete → deleted after grace period)
+    try:
+        from app.services.account_deletion_service import finalize_scheduled_deletions
+        n = finalize_scheduled_deletions()
+        if n:
+            print(f"[account-delete] Finalized {n} scheduled account deletion(s)")
+    except Exception as e:
+        print(f"[WARN] Account deletion scheduler (startup): {e}")
+
+
+def _account_deletion_scheduler_loop():
+    import time
+    from app.services.account_deletion_service import finalize_scheduled_deletions
+    interval = int(os.getenv('ACCOUNT_DELETE_SCHEDULER_SEC', '3600') or 3600)
+    while True:
+        time.sleep(max(60, interval))
+        try:
+            with app.app_context():
+                n = finalize_scheduled_deletions()
+                if n:
+                    print(f"[account-delete] Finalized {n} scheduled account deletion(s)")
+        except Exception as e:
+            print(f"[WARN] Account deletion scheduler: {e}")
+
+
+threading.Thread(target=_account_deletion_scheduler_loop, daemon=True).start()
 
 
 # Register blueprints
@@ -187,14 +169,6 @@ app.register_blueprint(contact_bp, url_prefix='/api/contact')
 app.register_blueprint(public_bp, url_prefix='/api/public')
 # AI/config endpoints
 app.register_blueprint(ai_bp, url_prefix='/api/ai')
-
-
-def _serve_page_html(filename):
-    resp = send_from_directory(PAGES_DIR, filename)
-    resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
-    resp.headers['Pragma'] = 'no-cache'
-    return resp
-
 
 # Route cho trang chủ trả về home.html
 @app.route('/')
@@ -222,6 +196,12 @@ def contact_page():
     return _serve_page_html('contact.html')
 
 # Trang pháp lý (Google Play / App Store)
+def _serve_page_html(filename):
+    resp = send_from_directory(PAGES_DIR, filename)
+    resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    resp.headers['Pragma'] = 'no-cache'
+    return resp
+
 @app.route('/privacy')
 def privacy_page():
     return _serve_page_html('privacy.html')
@@ -345,6 +325,7 @@ if __name__ == '__main__':
     _url_localhost = f"http://localhost:{_port}"
     print(f"Open URL: {_url_loopback}")
     print(f"Open URL: {_url_localhost}")
+    print(f"Public stats API: {_url_loopback}/api/public/stats")
 
     # Optional auto-open browser for local dev.
     _auto_open = (os.getenv('BACKEND_AUTO_OPEN_BROWSER', '1') or '').strip().lower() in ('1', 'true', 'yes', 'on')

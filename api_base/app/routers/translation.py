@@ -18,6 +18,19 @@ def _get_translation_service():
     return translation_service
 
 
+def _resolve_user(identity):
+    """JWT identity = google_id (Google OAuth) hoặc str(user.id) (email/password)."""
+    if not identity:
+        return None
+    user = User.query.filter_by(google_id=identity).first()
+    if user:
+        return user
+    try:
+        return User.query.filter_by(id=int(identity)).first()
+    except (TypeError, ValueError):
+        return None
+
+
 def _count_tokens_from_text(value):
     text = str(value or "").strip()
     if not text:
@@ -34,11 +47,55 @@ def _estimate_document_tokens(file_path):
     return max(200, size_kb * 3)
 
 
+def _is_admin(user):
+    if not user:
+        return False
+    return str(getattr(user, "role", "") or "").strip().lower() == "admin"
+
+
 def _has_enough_tokens(user, needed_tokens):
     if not user:
         return True, None
     balance = int(user.token_balance or 0)
+    if _is_admin(user):
+        return True, balance
     return balance >= int(needed_tokens), balance
+
+
+def _deduct_tokens(user, token_cost):
+    if user and not _is_admin(user):
+        user.token_balance = int(user.token_balance or 0) - int(token_cost)
+
+
+def _refund_tokens(user, token_cost):
+    if user and not _is_admin(user):
+        user.token_balance = int(user.token_balance or 0) + int(token_cost)
+
+
+def _user_plan(user) -> str:
+    if not user:
+        return "free"
+    plan = str(getattr(user, "plan", None) or "free").strip().lower()
+    return plan if plan in ("free", "pro", "promax") else "free"
+
+
+def _resolve_translation_provider(user, requested: str | None) -> str:
+    from app.services.translation_config_service import (
+        default_provider_for_plan,
+        provider_allowed_for_plan,
+        providers_for_plan,
+    )
+
+    plan = _user_plan(user)
+    provider = (requested or "").strip() or None
+    if not provider:
+        return default_provider_for_plan(plan)
+    if not provider_allowed_for_plan(plan, provider):
+        allowed = providers_for_plan(plan)
+        raise ValueError(
+            f"Gói {plan.upper()} chỉ dùng được: {', '.join(allowed)}."
+        )
+    return provider
 
 UPLOAD_FOLDER = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'uploads')
 if not os.path.exists(UPLOAD_FOLDER):
@@ -77,8 +134,7 @@ def translate_text():
     if not target_lang or not str(target_lang).strip():
         return jsonify({"error": "target_lang is required"}), 400
 
-    user_id = get_jwt_identity()
-    user = User.query.filter_by(google_id=user_id).first() if user_id else None
+    user = _resolve_user(get_jwt_identity())
 
     is_html = data.get('is_html', False)
     cost_source_text = re.sub(r"<[^>]+>", " ", str(text)) if is_html else str(text)
@@ -93,6 +149,11 @@ def translate_text():
         }), 402
 
     try:
+        translation_provider = _resolve_translation_provider(user, translation_provider)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 403
+
+    try:
         if is_html:
             translated_text = svc.translate_html(text, source_lang, target_lang, provider=translation_provider)
         else:
@@ -102,8 +163,7 @@ def translate_text():
     except RuntimeError as e:
         return jsonify({"error": str(e)}), 503
 
-    if user:
-        user.token_balance = int(user.token_balance or 0) - token_cost
+    _deduct_tokens(user, token_cost)
 
     translation = Translation(
         user_id=user.id if user else None,
@@ -157,7 +217,7 @@ def translate_document():
     file.save(filepath)
     
     user_id = get_jwt_identity()
-    user = User.query.filter_by(google_id=user_id).first() if user_id else None
+    user = _resolve_user(user_id)
 
     token_cost = _estimate_document_tokens(filepath)
     can_translate, balance = _has_enough_tokens(user, token_cost)
@@ -172,8 +232,7 @@ def translate_document():
             "token_balance": int(balance or 0),
         }), 402
 
-    if user:
-        user.token_balance = int(user.token_balance or 0) - token_cost
+    _deduct_tokens(user, token_cost)
 
     # Create DB record indicating processing started
     translation = Translation(
@@ -198,6 +257,17 @@ def translate_document():
     translation_provider = (request.form.get('translation_provider') or '').strip() or None
     print(f"[translate_document] bilingual_mode={bilingual_mode!r}, bilingual_delimiter={bilingual_delimiter!r}, ext={ext}")
 
+    try:
+        translation_provider = _resolve_translation_provider(user, translation_provider)
+    except ValueError as e:
+        _refund_tokens(user, token_cost)
+        db.session.commit()
+        try:
+            os.remove(filepath)
+        except Exception:
+            pass
+        return jsonify({"error": str(e)}), 403
+
     # Start background job
     try:
         job_id = svc.translate_document_background(
@@ -207,9 +277,8 @@ def translate_document():
             translation_provider=translation_provider,
         )
     except Exception as e:
-        if user:
-            user.token_balance = int(user.token_balance or 0) + token_cost
-            db.session.commit()
+        _refund_tokens(user, token_cost)
+        db.session.commit()
         return jsonify({"error": f"Unable to start translation job: {str(e)}"}), 500
 
     return jsonify({
@@ -254,7 +323,7 @@ def translate_image():
         return jsonify({"error": "target_lang is required"}), 400
 
     user_id = get_jwt_identity()
-    user = User.query.filter_by(google_id=user_id).first() if user_id else None
+    user = _resolve_user(user_id)
 
     # Basic extension allowlist
     filename = secure_filename(file.filename)
@@ -267,6 +336,15 @@ def translate_image():
     unique_name = f"{uuid.uuid4().hex}_{filename}"
     filepath = os.path.join(UPLOAD_FOLDER, unique_name)
     file.save(filepath)
+
+    try:
+        translation_provider = _resolve_translation_provider(user, translation_provider)
+    except ValueError as e:
+        try:
+            os.remove(filepath)
+        except Exception:
+            pass
+        return jsonify({"error": str(e)}), 403
 
     try:
         svc.set_request_translation_provider(translation_provider)
@@ -339,8 +417,7 @@ def translate_image():
             "token_balance": int(balance or 0),
         }), 402
 
-    if user:
-        user.token_balance = int(user.token_balance or 0) - token_cost
+    _deduct_tokens(user, token_cost)
 
     # Persist translation history
     translation = Translation(
@@ -411,8 +488,7 @@ def save_translation():
     if not target_lang or not str(target_lang).strip():
         return jsonify({'error': 'target_lang is required'}), 400
 
-    user_google_id = get_jwt_identity()
-    user = User.query.filter_by(google_id=user_google_id).first()
+    user = _resolve_user(get_jwt_identity())
     if not user:
         return jsonify({'error': 'User not found'}), 404
 
@@ -446,8 +522,7 @@ def save_translation():
 @translation_bp.route('/history', methods=['GET'])
 @jwt_required(optional=True)
 def get_history():
-    user_google_id = get_jwt_identity()
-    user = User.query.filter_by(google_id=user_google_id).first() if user_google_id else None
+    user = _resolve_user(get_jwt_identity())
     if not user:
         return jsonify({'translations': [], 'total': 0, 'pages': 0, 'current_page': 1}), 200
 

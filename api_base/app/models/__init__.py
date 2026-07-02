@@ -18,39 +18,51 @@ def _default_free_tokens():
 class User(db.Model):
     id            = db.Column(db.Integer, primary_key=True)
     google_id     = db.Column(db.String(255), unique=True)
+    username      = db.Column(db.String(50), unique=True, nullable=True)
     email         = db.Column(db.String(255), nullable=False, unique=True)
     name          = db.Column(db.String(255))
     avatar_url    = db.Column(db.String(500))
     password_hash = db.Column(db.String(255), nullable=True)   # NULL = Google-only account
+    email_verified = db.Column(db.Boolean, default=False, nullable=False)
     plan          = db.Column(db.String(50),  default='free')   # free | pro | promax
     role          = db.Column(db.String(20),  default='user')   # user | admin
     token_balance = db.Column(db.Integer,     default=_default_free_tokens)
     created_at    = db.Column(db.DateTime,    default=datetime.utcnow)
 
+    # Account deletion lifecycle (active | pending_delete | deleted)
+    account_status         = db.Column(db.String(20),  default='active', nullable=False)
+    delete_requested_at    = db.Column(db.DateTime,    nullable=True)
+    delete_scheduled_at    = db.Column(db.DateTime,    nullable=True)
+    delete_reason          = db.Column(db.Text,        nullable=True)
+    delete_otp             = db.Column(db.String(255), nullable=True)   # hashed OTP
+    delete_otp_expires_at  = db.Column(db.DateTime,    nullable=True)
+    delete_otp_verified    = db.Column(db.Boolean,     default=False, nullable=False)
+    delete_otp_wrong_attempts = db.Column(db.Integer,  default=0, nullable=False)
+    delete_otp_locked_until   = db.Column(db.DateTime, nullable=True)
+    delete_cancelled_at    = db.Column(db.DateTime,    nullable=True)
+    deleted_at             = db.Column(db.DateTime,    nullable=True)
+
     preference    = db.relationship('UserPreference', back_populates='user', uselist=False, cascade='all, delete-orphan')
     login_logs    = db.relationship('UserLoginLog',   back_populates='user', cascade='all, delete-orphan')
 
-    def __init__(
-        self,
-        *,
-        email: str,
-        name: str | None = None,
-        google_id: str | None = None,
-        avatar_url: str | None = None,
-        password_hash: str | None = None,
-        plan: str = 'free',
-        role: str = 'user',
-        token_balance: int | None = None,
-    ) -> None:
-        self.email = email
-        self.name = name
-        self.google_id = google_id
-        self.avatar_url = avatar_url
-        self.password_hash = password_hash
-        self.plan = plan
-        self.role = role
-        if token_balance is not None:
-            self.token_balance = token_balance
+
+class AuthOtp(db.Model):
+    """Pending OTP for registration or password reset."""
+    __tablename__ = 'auth_otp'
+
+    id = db.Column(db.Integer, primary_key=True)
+    purpose = db.Column(db.String(20), nullable=False, index=True)  # register | password_reset
+    email = db.Column(db.String(255), nullable=False, index=True)
+    username = db.Column(db.String(50), nullable=True)
+    name = db.Column(db.String(255), nullable=True)
+    password_hash = db.Column(db.String(255), nullable=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    otp_hash = db.Column(db.String(255), nullable=False)
+    expires_at = db.Column(db.DateTime, nullable=False)
+    wrong_attempts = db.Column(db.Integer, default=0, nullable=False)
+    resend_count = db.Column(db.Integer, default=0, nullable=False)
+    resend_window_start = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
 # ──────────────────────────────────────────────

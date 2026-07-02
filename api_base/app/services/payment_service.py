@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 class PaymentService:
-    PACKAGES = {
+    DEFAULT_PACKAGES = {
         "pro": {
             "package_id": "pro",
             "plan": "pro",
@@ -27,6 +27,21 @@ class PaymentService:
             "token_amount": 300000,
         },
     }
+
+    @classmethod
+    def _load_packages(cls) -> dict:
+        try:
+            from app.services.site_config_service import load_packages_config
+            data = load_packages_config()
+            if isinstance(data, dict) and data:
+                return data
+        except Exception:
+            pass
+        return dict(cls.DEFAULT_PACKAGES)
+
+    @property
+    def PACKAGES(self):
+        return self._load_packages()
 
     def __init__(self):
         # Ensure .env is loaded even if this service is imported before app.config.

@@ -32,20 +32,16 @@ try:
         normalize_bilingual_mode,
         normalize_converted_docx_layout_in_doc,
         recover_docx_layout,
-        resolve_pdf_layout_mode,
         sanitize_converted_docx,
-        should_preserve_pdf_lines,
-        uses_regional_layout,
+        _normalize_newline_bilingual_layout_in_doc,
     )
 except ImportError:
     from app.services.document_v2.pdf_docx_pipeline.layout_recovery import (
         normalize_bilingual_mode,
         normalize_converted_docx_layout_in_doc,
         recover_docx_layout,
-        resolve_pdf_layout_mode,
         sanitize_converted_docx,
-        should_preserve_pdf_lines,
-        uses_regional_layout,
+        _normalize_newline_bilingual_layout_in_doc,
     )
 
 
@@ -71,10 +67,31 @@ def _emit(progress_callback: Optional[Callable[[int, str], None]], pct: int, msg
         progress_callback(int(pct), msg)
 
 
+_UNICODE_MATH_RE = re.compile(
+    r"[\u0391-\u03C9"       # Greek Α–ω
+    r"\u2200-\u22FF"         # Mathematical Operators (∀∂∃∄∅∆∇∈∉∑∏∫√∞≤≥≠≈...)
+    r"\u2190-\u21FF"         # Arrows ←↑→↓↔⇒⇐⇔...
+    r"\u00B1\u00D7\u00F7\u00B7"  # ± × ÷ ·
+    r"\u00B2\u00B3\u00B9"   # ² ³ ¹
+    r"\u2070-\u2079"         # Superscript digits ⁰–⁹
+    r"\u2080-\u2089"         # Subscript digits ₀–₉
+    r"\u221A-\u221F"         # √ ∛ ∜ ∝ ∞ ∟ ∠ ∡ ∢
+    r"\u2248\u2260\u2264\u2265"  # ≈ ≠ ≤ ≥
+    r"]"
+)
+
+
 def _looks_like_formula(text: str) -> bool:
     s = (text or "").strip()
     if not s:
         return False
+    # Unicode math symbols (Greek, operators, arrows, superscripts, etc.)
+    unicode_math = _UNICODE_MATH_RE.findall(s)
+    if unicode_math:
+        latin_letters = re.findall(r"[A-Za-zÀ-ỹ]", s)
+        if len(unicode_math) >= len(latin_letters) or len(unicode_math) >= 2:
+            return True
+    # ASCII math operators.
     math_syms = re.findall(r"[=+\-*/^_{}\\<>]", s)
     if len(math_syms) >= 2:
         letters = len(re.findall(r"[A-Za-zÀ-ỹ]", s))
@@ -441,9 +458,26 @@ def analyze_pdf(pdf_path: str) -> Dict[str, Any]:
     multi_column_pages = 0
     has_formulas = False
     has_references = False
+    has_abstract_heading = False
+    has_keywords_heading = False
+    has_intro_heading = False
+    numbered_section_hits = 0
     text_chars = 0
 
     ref_re = re.compile(r"\b(references|reference|tai lieu tham khao|tài liệu tham khảo|doi|arxiv)\b", re.IGNORECASE)
+    abstract_re = re.compile(
+        r"\b(abstract|t[oóô]m\s*t[aắ]t|t[oóô]mt[aắ]t|abstrak|abstrakt|r[eé]sum[eé]|zusammenfassung)\b",
+        re.IGNORECASE,
+    )
+    keywords_re = re.compile(
+        r"\b(keywords?|t[uừ]\s*kh[oó]a|t[uừ]kh[oó]a|sleutelwoorde?|fjal[eë]t\s*ky[çc]e|schl[uü]sselw[oö]rter)\b",
+        re.IGNORECASE,
+    )
+    intro_re = re.compile(
+        r"\b(1\s+introduction|introduction|1\s+gi[oớ]i\s*th[iệ]u|gi[oớ]i\s*th[iệ]u|inleiding|einleitung|hyrje)\b",
+        re.IGNORECASE,
+    )
+    numbered_section_re = re.compile(r"(?m)^\s*\d{1,2}(?:\.\d+)?\s+[A-ZÀ-Ỹ][^\n]{2,90}$")
 
     page_count = 0
     try:
@@ -461,6 +495,14 @@ def analyze_pdf(pdf_path: str) -> Dict[str, Any]:
                     has_references = True
                 if not has_formulas and _looks_like_formula(text):
                     has_formulas = True
+                if not has_abstract_heading and abstract_re.search(text):
+                    has_abstract_heading = True
+                if not has_keywords_heading and keywords_re.search(text):
+                    has_keywords_heading = True
+                if not has_intro_heading and intro_re.search(text):
+                    has_intro_heading = True
+                if numbered_section_hits < 12:
+                    numbered_section_hits += len(numbered_section_re.findall(text))
 
             if not has_images:
                 try:
@@ -497,6 +539,30 @@ def analyze_pdf(pdf_path: str) -> Dict[str, Any]:
         doc.close()
 
     is_scan = not has_text
+    academic_score = 0
+    if has_abstract_heading:
+        academic_score += 2
+    if has_keywords_heading:
+        academic_score += 1
+    if has_intro_heading:
+        academic_score += 1
+    if has_references:
+        academic_score += 2
+    if has_formulas:
+        academic_score += 1
+    if has_multiple_columns and multi_column_pages >= max(1, page_count // 3):
+        academic_score += 1
+    if numbered_section_hits >= 2:
+        academic_score += 1
+
+    is_academic_like = bool(
+        has_text
+        and (
+            (has_abstract_heading and (has_intro_heading or numbered_section_hits >= 2))
+            or (academic_score >= 4 and has_references)
+            or academic_score >= 5
+        )
+    )
     return {
         "pages": page_count,
         "has_text": has_text,
@@ -506,6 +572,12 @@ def analyze_pdf(pdf_path: str) -> Dict[str, Any]:
         "multi_column_pages": multi_column_pages,
         "has_formulas": has_formulas,
         "has_references": has_references,
+        "has_abstract_heading": has_abstract_heading,
+        "has_keywords_heading": has_keywords_heading,
+        "has_intro_heading": has_intro_heading,
+        "numbered_section_hits": numbered_section_hits,
+        "academic_score": academic_score,
+        "is_academic_like": is_academic_like,
         "text_chars": text_chars,
         "is_scan": is_scan,
     }
@@ -513,32 +585,36 @@ def analyze_pdf(pdf_path: str) -> Dict[str, Any]:
 
 def _pdf2docx_convert_settings(analysis: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Tune pdf2docx parser settings to preserve layout/format as much as possible."""
+    analysis = analysis or {}
+
     settings: Dict[str, Any] = {
-        "delete_end_line_hyphen": _env_bool("PDF2DOCX_DELETE_HYPHEN", True),
+        "delete_end_line_hyphen": _env_bool("PDF2DOCX_DELETE_HYPHEN", False),
         "parse_lattice_table": _env_bool("PDF2DOCX_PARSE_LATTICE_TABLE", True),
         "parse_stream_table": _env_bool("PDF2DOCX_PARSE_STREAM_TABLE", True),
+        # extract_stream_table: pdf2docx default is False (stream tables parsed but NOT saved to docx).
+        # We always enable it so detected stream tables are actually written as <w:tbl>.
+        "extract_stream_table": _env_bool("PDF2DOCX_EXTRACT_STREAM_TABLE", True),
+        # list_not_table: keep True (default) globally — prevents bullet/list structures from being
+        # misclassified as table cells, which causes content to appear twice (inside table + as paragraphs).
+        # Only disable when we have confirmed bordered tables in the PDF.
         "list_not_table": _env_bool("PDF2DOCX_LIST_NOT_TABLE", True),
         "ignore_page_error": True,
         "line_separate_threshold": _env_float("PDF2DOCX_LINE_SEPARATE", 5.0),
         "new_paragraph_free_space_ratio": _env_float("PDF2DOCX_NEW_PARA_RATIO", 0.85),
         "lines_center_aligned_threshold": _env_float("PDF2DOCX_CENTER_ALIGN_TOL", 2.0),
         "clip_image_res_ratio": _env_float("PDF2DOCX_CLIP_IMAGE_RES", 4.0),
+        "float_image_ignorable_gap": _env_float("PDF2DOCX_FLOAT_IMG_GAP", 5.0),
+        # Lower SVG merge gap so formula vector components are merged into one image block.
+        "min_svg_gap_dx": _env_float("PDF2DOCX_MIN_SVG_GAP_DX", 8.0),
+        "min_svg_gap_dy": _env_float("PDF2DOCX_MIN_SVG_GAP_DY", 2.0),
     }
-    analysis = analysis or {}
-    layout_mode = str(analysis.get("layout_mode") or "").strip().lower()
-    preserve_lines = layout_mode == "conservative" or (
-        layout_mode != "academic"
-        and _env_bool("PDF_DOCX_PRESERVE_LINES", True)
-        and not _env_bool("PDF_DOCX_COLLAPSE_SOFT_BREAKS", False)
-    )
-    if preserve_lines or should_preserve_pdf_lines(layout_mode or None):
-        settings["line_separate_threshold"] = _env_float("PDF2DOCX_LINE_SEPARATE_CONSERVATIVE", 1.2)
-        settings["new_paragraph_free_space_ratio"] = _env_float("PDF2DOCX_NEW_PARA_RATIO_CONSERVATIVE", 0.92)
-        settings["delete_end_line_hyphen"] = False
+
     if analysis.get("has_tables"):
-        settings["extract_stream_table"] = True
-        settings["parse_lattice_table"] = True
-        settings["parse_stream_table"] = True
+        # Confirmed bordered tables → disable list_not_table for more aggressive cell detection.
+        settings["list_not_table"] = _env_bool("PDF2DOCX_LIST_NOT_TABLE", False)
+    if analysis.get("has_formulas"):
+        settings["min_svg_gap_dx"] = _env_float("PDF2DOCX_MIN_SVG_GAP_DX", 5.0)
+        settings["min_svg_gap_dy"] = _env_float("PDF2DOCX_MIN_SVG_GAP_DY", 1.0)
     if analysis.get("has_multiple_columns"):
         settings["line_break_width_ratio"] = _env_float("PDF2DOCX_LINE_BREAK_WIDTH", 0.45)
         settings["line_separate_threshold"] = _env_float("PDF2DOCX_LINE_SEPARATE", 8.0)
@@ -558,6 +634,181 @@ def _env_float(name: str, default: float) -> float:
         return float(str(raw).strip())
     except Exception:
         return float(default)
+
+
+_MATH_FONT_RE = re.compile(
+    r"cmmi|cmsy|cmex|cmr(?!oman)|cmbx|cmtt|cmit|"
+    r"msbm|msam|euex|euf|eus|eur|esint|stmary|"
+    r"stix|latinmodern.math|xits|asana.math|"
+    r"fira.math|mathpazo|mathtime|lucidamath|"
+    r"mtmi|mtex|wasy|rsfs|bbold|doublestroke",
+    re.IGNORECASE,
+)
+
+
+def _inject_formula_clips(pdf_path: str, docx_path: str, *, clip_res: float = 3.0) -> int:
+    """Detect lines in the PDF that use mathematical fonts and inject them as
+    high-resolution PNG images into corresponding paragraphs in the DOCX.
+
+    This handles the common case where pdf2docx extracts formula characters from
+    math fonts (cmmi, cmsy, stix, …) as text with wrong Unicode mapping — the
+    characters appear garbled.  We clip the original PDF region and replace those
+    paragraphs with an image so the formula is visible and correct.
+
+    Returns the number of formula images injected.
+    """
+    if not _env_bool("PDF_DOCX_INJECT_FORMULA_CLIPS", True):
+        return 0
+
+    try:
+        import fitz  # PyMuPDF
+        import docx as _docx_mod
+        from docx.oxml.ns import qn as _qn
+        from docx.oxml import OxmlElement
+        from lxml import etree
+        import copy
+    except Exception:
+        return 0
+
+    if not os.path.isfile(pdf_path) or not os.path.isfile(docx_path):
+        return 0
+
+    # ── Step 1: collect math-font line bboxes from the PDF ──────────────────
+    try:
+        pdf_doc = fitz.open(pdf_path)
+    except Exception:
+        return 0
+
+    # Maps plain-text key → (page, bbox) for each formula line
+    formula_lines: List[Dict[str, Any]] = []  # {"text", "page", "bbox"}
+
+    try:
+        for page_idx in range(len(pdf_doc)):
+            page = pdf_doc[page_idx]
+            try:
+                raw = page.get_text("rawdict", flags=0)
+            except Exception:
+                continue
+            for block in raw.get("blocks", []):
+                if block.get("type") != 0:
+                    continue
+                for line in block.get("lines", []):
+                    has_math_font = False
+                    line_text = ""
+                    for span in line.get("spans", []):
+                        font_name = span.get("font", "")
+                        if _MATH_FONT_RE.search(font_name):
+                            has_math_font = True
+                        line_text += span.get("text", "")
+                    if has_math_font and line_text.strip():
+                        # Expand bbox for padding
+                        bbox = list(line["bbox"])
+                        bbox[1] -= 4
+                        bbox[3] += 4
+                        formula_lines.append({
+                            "text": line_text.strip(),
+                            "page": page_idx,
+                            "bbox": bbox,
+                        })
+    finally:
+        pdf_doc.close()
+
+    if not formula_lines:
+        return 0
+
+    # ── Step 2: open DOCX, match paragraphs by text similarity ──────────────
+    try:
+        doc = _docx_mod.Document(docx_path)
+    except Exception:
+        return 0
+
+    # Build a simple list of (para, plain_text) for all body paragraphs
+    all_paras = []
+    for para in doc.paragraphs:
+        try:
+            txt = "".join(r.text or "" for r in para.runs).strip()
+        except Exception:
+            txt = ""
+        all_paras.append((para, txt))
+
+    def _text_sim(a: str, b: str) -> float:
+        """Naive char-set overlap similarity."""
+        if not a or not b:
+            return 0.0
+        sa, sb = set(a.lower()), set(b.lower())
+        inter = len(sa & sb)
+        return inter / max(len(sa), len(sb))
+
+    # Track which DOCX paragraphs have already been replaced to avoid duplicates
+    replaced: set = set()
+
+    # ── Step 3: for each formula line, find best-matching DOCX paragraph ────
+    injected = 0
+    try:
+        pdf_doc2 = fitz.open(pdf_path)
+    except Exception:
+        return 0
+
+    try:
+        for fl in formula_lines:
+            fl_text = fl["text"]
+            best_idx, best_sim = -1, 0.3  # min threshold
+            for idx, (para, ptxt) in enumerate(all_paras):
+                if idx in replaced:
+                    continue
+                sim = _text_sim(fl_text, ptxt)
+                if sim > best_sim:
+                    best_sim = sim
+                    best_idx = idx
+
+            if best_idx < 0:
+                continue
+
+            # Clip the formula region from the PDF page
+            try:
+                page = pdf_doc2[fl["page"]]
+                clip = fitz.Rect(fl["bbox"])
+                mat = fitz.Matrix(clip_res, clip_res)
+                pix = page.get_pixmap(matrix=mat, clip=clip, alpha=False)
+                img_bytes = pix.tobytes("png")
+            except Exception:
+                continue
+
+            # Insert image into matched DOCX paragraph
+            para = all_paras[best_idx][0]
+            try:
+                # Clear paragraph content while preserving pPr
+                p_elem = para._element
+                ppr = p_elem.find(_qn("w:pPr"))
+                # Remove all w:r children
+                for child in list(p_elem):
+                    if child.tag != _qn("w:pPr"):
+                        p_elem.remove(child)
+                # Add image run via python-docx inline image mechanism
+                from io import BytesIO
+                from docx.shared import Inches, Pt
+                img_stream = BytesIO(img_bytes)
+                # Estimate display width: clip width in points / 72 * clip_res → real pt → inches
+                clip_w_pt = (fl["bbox"][2] - fl["bbox"][0])
+                clip_h_pt = (fl["bbox"][3] - fl["bbox"][1])
+                img_w_in = min(clip_w_pt / 72.0, 6.0)  # max 6 inches
+                img_h_in = clip_h_pt / 72.0 * (img_w_in / (clip_w_pt / 72.0))
+                new_run = para.add_run()
+                new_run.add_picture(img_stream, width=int(img_w_in * 914400))  # EMU
+                replaced.add(best_idx)
+                injected += 1
+            except Exception:
+                continue
+    finally:
+        pdf_doc2.close()
+
+    if injected:
+        try:
+            doc.save(docx_path)
+        except Exception:
+            pass
+
+    return injected
 
 
 def _convert_pdf_to_docx(
@@ -973,8 +1224,6 @@ def run_pdf_docx_pipeline(
             intermediate_paths.append(working_pdf)
 
     _emit(progress_callback, 32, "PDF -> DOCX: converting...")
-    layout_mode_pre = resolve_pdf_layout_mode(analysis)
-    analysis["layout_mode"] = layout_mode_pre
     tmp_docx = os.path.join(
         service.upload_folder,
         f"pdf_{uuid.uuid4().hex[:8]}.docx",
@@ -986,24 +1235,10 @@ def run_pdf_docx_pipeline(
         analysis=analysis,
     )
 
-    import docx as _docx_mod
-
-    pre_doc = _docx_mod.Document(tmp_docx)
-    layout_mode = resolve_pdf_layout_mode(analysis, list(pre_doc.paragraphs))
-    analysis["layout_mode"] = layout_mode
-    _emit(
-        progress_callback,
-        33,
-        (
-            f"PDF Layout mode: {layout_mode} "
-            f"({'regional title/abstract/body' if uses_regional_layout(layout_mode) else 'preserve pdf2docx layout'})"
-        ),
-    )
-
     noise_stats = sanitize_converted_docx(
         tmp_docx,
         pdf_path=working_pdf,
-        layout_mode=layout_mode,
+        analysis=analysis,
     )
     if any(int(v or 0) for v in noise_stats.values()):
         _emit(
@@ -1013,13 +1248,27 @@ def run_pdf_docx_pipeline(
                 "PDF -> DOCX: cleaned "
                 f"noise={int(noise_stats.get('noise_removed', 0))}, "
                 f"merge={int(noise_stats.get('fragments_merged', 0))}, "
-                f"split={int(noise_stats.get('lines_split', 0))}, "
-                f"symbols={int(noise_stats.get('symbols_normalized', 0))}, "
-                f"fonts={int(noise_stats.get('fonts_unified', 0))}, "
                 f"align={int(noise_stats.get('alignment_normalized', 0))}, "
                 f"indent={int(noise_stats.get('indents_normalized', 0))}"
             ),
         )
+
+    # Determine bilingual mode early so we can skip formula clipping for bilingual modes.
+    # (Formula clipper replaces paragraphs with images before translation; that breaks bilingual
+    # text insertion which appends translated text to the same paragraph elements.)
+    _bi_mode_early = normalize_bilingual_mode(bilingual_mode)
+
+    # Inject formula clips: detect math-font lines in the PDF and replace the
+    # corresponding garbled-text paragraphs in the DOCX with clipped PNG images.
+    # Only run for normal (non-bilingual) mode — bilingual modes need the original paragraph
+    # structure intact so translated text can be appended correctly.
+    if _bi_mode_early == "none" and (analysis.get("has_formulas") or analysis.get("is_academic_like")):
+        try:
+            n_clips = _inject_formula_clips(working_pdf, tmp_docx, clip_res=3.0)
+            if n_clips:
+                _emit(progress_callback, 35, f"Formula Clipper: injected {n_clips} formula image(s)")
+        except Exception as _fclip_exc:
+            _emit(progress_callback, 35, f"Formula Clipper: skipped ({str(_fclip_exc)[:80]})")
 
     _emit(progress_callback, 36, "DOCX Structure Extractor: reading...")
     docx_ir = generate_docx_ir(tmp_docx)
@@ -1054,7 +1303,6 @@ def run_pdf_docx_pipeline(
         bilingual_mode=bilingual_mode,
         bilingual_delimiter=bilingual_delimiter,
         from_pdf=True,
-        pdf_layout_mode=layout_mode,
     )
 
     if not str(translated_docx).lower().endswith(".docx"):
@@ -1082,9 +1330,11 @@ def run_pdf_docx_pipeline(
         pdf_path=working_pdf,
         analysis=analysis,
         bilingual_mode=bi_mode,
-        layout_mode=layout_mode,
+        bilingual_delimiter=bilingual_delimiter,
     )
     if recovery_stats.get("changed"):
+        _bi_tables = int(recovery_stats.get("bilingual_tables_converted", 0))
+        _bi_table_msg = f", bilingual_tables={_bi_tables}" if _bi_tables else ""
         _emit(
             progress_callback,
             88,
@@ -1094,33 +1344,69 @@ def run_pdf_docx_pipeline(
                 f"mismatch={int(recovery_stats.get('mismatched_paragraphs', 0))}, "
                 f"table_cells={int(recovery_stats.get('table_cells_synced', 0))}, "
                 f"images={int(recovery_stats.get('images_resized', 0))}"
+                + _bi_table_msg
             ),
         )
     else:
         _emit(progress_callback, 88, "DOCX Layout Recovery: no structural fixes needed")
 
-    if bi_mode == "none" and uses_regional_layout(layout_mode) and not should_preserve_pdf_lines(layout_mode):
+    if bi_mode == "none":
         _emit(progress_callback, 89, "DOCX Layout: final regional profile pass before PDF export...")
         try:
+            import docx as _docx_mod
+
             final_doc = _docx_mod.Document(translated_docx)
             src_doc = _docx_mod.Document(tmp_docx)
             final_stats = normalize_converted_docx_layout_in_doc(
                 final_doc,
                 pdf_path=working_pdf,
                 src_doc=src_doc,
-                layout_mode=layout_mode,
+                analysis=analysis,
             )
             if any(int(v or 0) for v in final_stats.values()):
                 final_doc.save(translated_docx)
         except Exception as exc:
             msg = str(exc).strip().splitlines()[0][:160]
             _emit(progress_callback, 89, f"DOCX Layout final pass skipped ({msg})")
-    elif bi_mode == "none":
-        _emit(progress_callback, 89, "DOCX Layout: preserve lines — skip regional re-normalize")
     elif bi_mode == "newline":
-        _emit(progress_callback, 89, "Bilingual newline: stacked-pair layout pass applied")
+        _emit(progress_callback, 89, "Bilingual newline: inline-style layout sync before PDF export...")
+        try:
+            final_doc = docx.Document(translated_docx)
+            src_doc = docx.Document(tmp_docx)
+            final_stats = _normalize_newline_bilingual_layout_in_doc(
+                final_doc,
+                src_doc,
+                pdf_path=working_pdf,
+                bilingual_delimiter=bilingual_delimiter or "|",
+            )
+            if any(int(v or 0) for v in final_stats.values()):
+                final_doc.save(translated_docx)
+                _emit(
+                    progress_callback,
+                    89,
+                    (
+                        "Bilingual newline layout (inline path): "
+                        f"synced={int(final_stats.get('paragraphs_synced', 0))}, "
+                        f"center_fixed={int(final_stats.get('center_alignment_fixed', 0))}"
+                    ),
+                )
+        except Exception as exc:
+            msg = str(exc).strip().splitlines()[0][:160]
+            _emit(progress_callback, 89, f"Bilingual newline final pass skipped ({msg})")
     else:
         _emit(progress_callback, 89, "Bilingual inline: skip layout re-normalize (preserve bilingual text)")
+
+    try:
+        from .layout_recovery import sanitize_document_text_fonts
+
+        final_doc = docx.Document(translated_docx)
+        font_fixed = sanitize_document_text_fonts(final_doc)
+        if font_fixed:
+            final_doc.save(translated_docx)
+            _emit(progress_callback, 89, f"DOCX font sanitize: fixed {font_fixed} run(s) before PDF export")
+    except Exception as exc:
+        msg = str(exc).strip().splitlines()[0][:160]
+        _emit(progress_callback, 89, f"DOCX font sanitize skipped ({msg})")
 
     _emit(progress_callback, 90, "DOCX -> PDF: exporting...")
     output_pdf = _convert_docx_to_pdf(

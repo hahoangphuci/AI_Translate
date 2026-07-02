@@ -36,7 +36,7 @@ def _get_cfg():
 
 def _send_raw(subject: str, html_body: str, to: str, cfg: dict):
     """Gửi email đồng bộ. Được gọi trong thread riêng."""
-    if not cfg.get('smtp_user') or not cfg.get('smtp_password') or not cfg.get('admin_email'):
+    if not cfg.get('smtp_user') or not cfg.get('smtp_password'):
         logger.warning('[email] SMTP chưa được cấu hình, bỏ qua gửi email.')
         return
 
@@ -59,15 +59,87 @@ def _send_raw(subject: str, html_body: str, to: str, cfg: dict):
         server.login(cfg['smtp_user'], cfg['smtp_password'])
         server.sendmail(cfg['smtp_from'], [to], msg.as_bytes())
         server.quit()
-        logger.info(f'[email] Đã gửi "{subject}" → {to}')
-    except Exception as e:
-        logger.error(f'[email] Gửi thất bại: {e}')
+        logger.info(f'[email] Đã gửi email tới {to}')
+    except Exception:
+        logger.error('[email] Gửi thất bại.')
+        raise
 
 
 def send_async(subject: str, html_body: str, to: str, cfg: dict):
     """Gửi email trong thread nền — không làm chậm response."""
     t = threading.Thread(target=_send_raw, args=(subject, html_body, to, cfg), daemon=True)
     t.start()
+
+
+def send_sync(subject: str, html_body: str, to: str, cfg: dict | None = None) -> tuple[bool, str]:
+    """Gửi email đồng bộ — trả (ok, error_message). Không log nội dung nhạy cảm."""
+    cfg = cfg or _get_cfg()
+    if not cfg.get('smtp_user') or not cfg.get('smtp_password'):
+        return False, 'Chưa cấu hình SMTP (SMTP_USER / SMTP_PASSWORD trong .env).'
+    try:
+        _send_raw(subject, html_body, to, cfg)
+        return True, ''
+    except Exception as e:
+        logger.error('[email] Gửi OTP thất bại (chi tiết không ghi nội dung nhạy cảm).')
+        return False, 'Không gửi được email. Vui lòng thử lại sau.'
+
+
+def send_otp_email_sync(to: str, otp_code: str, purpose: str) -> tuple[bool, str]:
+    """Gửi mã OTP 6 số — đồng bộ, không log OTP."""
+    cfg = _get_cfg()
+    purpose = (purpose or '').strip().lower()
+    if purpose == 'register':
+        title = 'Xác thực đăng ký tài khoản'
+        intro = 'Mã OTP để hoàn tất đăng ký tài khoản AI Translator của bạn:'
+        ttl = '5 phút'
+    elif purpose == 'account_delete':
+        title = 'Xác nhận yêu cầu xóa tài khoản'
+        intro = 'Mã OTP để xác nhận yêu cầu xóa tài khoản AI Translator của bạn:'
+        ttl = '5 phút'
+    elif purpose == 'account_restore':
+        title = 'Xác nhận khôi phục tài khoản'
+        intro = 'Mã OTP để khôi phục tài khoản AI Translator của bạn:'
+        ttl = '5 phút'
+    elif purpose == 'clear_history':
+        title = 'Xác nhận xóa lịch sử dịch'
+        intro = 'Mã OTP để xác nhận xóa toàn bộ lịch sử dịch AI Translator của bạn:'
+        ttl = '5 phút'
+    elif purpose == 'password_reset':
+        title = 'Khôi phục mật khẩu'
+        intro = 'Mã OTP để đặt lại mật khẩu tài khoản AI Translator của bạn:'
+        ttl = '10 phút'
+    else:
+        title = 'Khôi phục mật khẩu'
+        intro = 'Mã OTP để đặt lại mật khẩu tài khoản AI Translator của bạn:'
+        ttl = '10 phút'
+
+    html = f"""<!DOCTYPE html>
+<html lang="vi"><head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#0b0f1a;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:30px 10px;">
+    <table width="520" cellpadding="0" cellspacing="0"
+           style="background:#0e1a2b;border-radius:12px;border:1px solid #1e3a5f;">
+      <tr><td style="background:linear-gradient(135deg,#007a63,#005fa3);padding:24px 28px;text-align:center;">
+        <h1 style="margin:0;color:#00ffd1;font-size:20px;">{title}</h1>
+      </td></tr>
+      <tr><td style="padding:28px;color:#cfe8f0;font-size:15px;line-height:1.7;">
+        <p>{intro}</p>
+        <p style="text-align:center;margin:24px 0;">
+          <span style="display:inline-block;background:#07161a;border:2px solid #00ffd1;
+                       border-radius:10px;padding:16px 28px;font-size:28px;letter-spacing:8px;
+                       color:#00ffd1;font-weight:bold;">{otp_code}</span>
+        </p>
+        <p style="color:#7ecfb3;font-size:13px;">Mã có hiệu lực trong <strong>{ttl}</strong>.
+           Không chia sẻ mã này với bất kỳ ai.</p>
+      </td></tr>
+      <tr><td style="background:#07161a;padding:14px;text-align:center;">
+        <p style="margin:0;color:#4a6a7a;font-size:11px;">AI Translator · Email tự động</p>
+      </td></tr>
+    </table>
+  </td></tr></table>
+</body></html>"""
+
+    return send_sync(f'[AI Translator] {title}', html, to, cfg)
 
 
 # ─────────────────────────────────────────
@@ -309,5 +381,100 @@ def send_admin_reply(contact_msg, reply_text: str) -> None:
         subject=f'[AI Translator] Phản hồi tin nhắn của bạn',
         html_body=html,
         to=contact_msg.email,
+        cfg=cfg,
+    )
+
+
+def send_account_delete_user_email(user) -> None:
+    """Email xác nhận yêu cầu xóa tài khoản gửi cho người dùng."""
+    cfg = _get_cfg()
+    if not user or not user.email:
+        return
+
+    name = (user.name or user.email or 'Người dùng').strip()
+    requested = user.delete_requested_at.strftime('%d/%m/%Y %H:%M') if user.delete_requested_at else '—'
+    scheduled = user.delete_scheduled_at.strftime('%d/%m/%Y %H:%M') if user.delete_scheduled_at else '—'
+
+    html = f"""<!DOCTYPE html>
+<html lang="vi"><head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#0b0f1a;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:30px 10px;">
+    <table width="560" cellpadding="0" cellspacing="0"
+           style="background:#0e1a2b;border-radius:12px;border:1px solid #1e3a5f;">
+      <tr><td style="background:linear-gradient(135deg,#8b2635,#5a1a24);padding:24px 28px;text-align:center;">
+        <h1 style="margin:0;color:#ffb4b4;font-size:20px;">Yêu cầu xóa tài khoản đã được ghi nhận</h1>
+      </td></tr>
+      <tr><td style="padding:28px;color:#cfe8f0;font-size:15px;line-height:1.8;">
+        <p>Xin chào <strong>{name}</strong>,</p>
+        <p>Chúng tôi đã ghi nhận yêu cầu xóa tài khoản AI Translator của bạn.</p>
+        <ul style="color:#a8c8d8;padding-left:20px;">
+          <li><strong>Email tài khoản:</strong> {user.email}</li>
+          <li><strong>Thời gian gửi yêu cầu:</strong> {requested}</li>
+          <li><strong>Ngày dự kiến xóa:</strong> {scheduled}</li>
+        </ul>
+        <p style="color:#7ecfb3;">Trong vòng <strong>30 ngày</strong>, bạn có thể đăng nhập lại và chọn
+           <strong>Khôi phục tài khoản</strong> nếu thay đổi quyết định.</p>
+        <p style="color:#8899aa;font-size:13px;">Sau thời hạn trên, tài khoản sẽ bị xóa hoặc vô hiệu hóa vĩnh viễn.</p>
+      </td></tr>
+      <tr><td style="background:#07161a;padding:14px;text-align:center;">
+        <p style="margin:0;color:#4a6a7a;font-size:11px;">AI Translator · Email tự động</p>
+      </td></tr>
+    </table>
+  </td></tr></table>
+</body></html>"""
+
+    send_async(
+        subject='Yêu cầu xóa tài khoản đã được ghi nhận',
+        html_body=html,
+        to=user.email,
+        cfg=cfg,
+    )
+
+
+def send_account_delete_admin_email(user) -> None:
+    """Thông báo admin khi có yêu cầu xóa tài khoản."""
+    cfg = _get_cfg()
+    admin_email = cfg.get('admin_email')
+    if not admin_email or not user:
+        return
+
+    name = (user.name or '—').strip()
+    requested = user.delete_requested_at.strftime('%d/%m/%Y %H:%M') if user.delete_requested_at else '—'
+    scheduled = user.delete_scheduled_at.strftime('%d/%m/%Y %H:%M') if user.delete_scheduled_at else '—'
+    reason = (user.delete_reason or '—').strip()
+    if len(reason) > 500:
+        reason = reason[:500] + '…'
+
+    html = f"""<!DOCTYPE html>
+<html lang="vi"><head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#0b0f1a;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:30px 10px;">
+    <table width="600" cellpadding="0" cellspacing="0"
+           style="background:#0e1a2b;border-radius:12px;border:1px solid #1e3a5f;">
+      <tr><td style="background:linear-gradient(135deg,#007a63,#005fa3);padding:24px 28px;">
+        <h1 style="margin:0;color:#00ffd1;font-size:20px;">Có yêu cầu xóa tài khoản từ người dùng</h1>
+      </td></tr>
+      <tr><td style="padding:28px;color:#cfe8f0;font-size:15px;line-height:1.8;">
+        <table width="100%" cellpadding="6" cellspacing="0">
+          <tr><td style="color:#7a9fb0;width:180px;">ID người dùng</td><td><strong>#{user.id}</strong></td></tr>
+          <tr><td style="color:#7a9fb0;">Tên</td><td>{name}</td></tr>
+          <tr><td style="color:#7a9fb0;">Email</td><td>{user.email}</td></tr>
+          <tr><td style="color:#7a9fb0;">Thời gian yêu cầu</td><td>{requested}</td></tr>
+          <tr><td style="color:#7a9fb0;">Ngày dự kiến xóa</td><td>{scheduled}</td></tr>
+          <tr><td style="color:#7a9fb0;">Lý do</td><td style="white-space:pre-wrap;">{reason}</td></tr>
+          <tr><td style="color:#7a9fb0;">Trạng thái</td><td><strong style="color:#ffb86c;">pending_delete</strong></td></tr>
+        </table>
+      </td></tr>
+      <tr><td style="background:#07161a;padding:14px;text-align:center;">
+        <p style="margin:0;color:#4a6a7a;font-size:11px;">AI Translator · Admin notification</p>
+      </td></tr>
+    </table>
+  </td></tr></table>
+</body></html>"""
+
+    send_async(
+        subject='Có yêu cầu xóa tài khoản từ người dùng',
+        html_body=html,
+        to=admin_email,
         cfg=cfg,
     )

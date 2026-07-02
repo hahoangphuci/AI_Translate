@@ -32,6 +32,47 @@ def _plan_rank(plan_name):
     return plan_order.get(str(plan_name or '').strip().lower(), 0)
 
 
+REPURCHASE_TOKEN_THRESHOLD = 0.10
+
+
+def _can_repurchase_package(user, package):
+    """Cho phép mua lại cùng gói khi token còn <= 10% hạn mức gói."""
+    if not user or not package:
+        return False
+    user_plan = str(user.plan or 'free').strip().lower()
+    package_plan = str(package.get('plan') or package.get('package_id') or '').strip().lower()
+    if user_plan != package_plan or user_plan == 'free':
+        return False
+    token_amount = int(package.get('token_amount') or 0)
+    if token_amount <= 0:
+        return False
+    balance = int(user.token_balance or 0)
+    threshold = max(1, int(token_amount * REPURCHASE_TOKEN_THRESHOLD))
+    return balance <= threshold
+
+
+def _can_purchase_package(user, package_id):
+    package = payment_service.get_package(package_id)
+    if not package:
+        return False, 'Invalid package_id'
+
+    user_plan = str(user.plan or 'free').strip().lower()
+    package_plan = str(package.get('plan') or package_id).strip().lower()
+    user_rank = _plan_rank(user_plan)
+    package_rank = _plan_rank(package_plan)
+
+    if package_rank > user_rank:
+        return True, None
+    if package_rank == user_rank:
+        if _can_repurchase_package(user, package):
+            return True, None
+        return False, (
+            'Bạn còn quá nhiều token. Chỉ có thể mua lại gói này khi token còn lại '
+            f'≤ {int(REPURCHASE_TOKEN_THRESHOLD * 100)}% hạn mức gói.'
+        )
+    return False, 'Không thể mua gói thấp hơn gói hiện tại.'
+
+
 def _serialize_invoice(payment, package, reused=False):
     hex_id = payment_service.encode_payment_id(payment.id)
     transfer_content = payment_service.build_transfer_content(hex_id)
@@ -98,7 +139,23 @@ def _complete_payment(payment, user, transaction_id=None):
 @payment_bp.route('/packages', methods=['GET'])
 @jwt_required()
 def list_packages():
-    packages = sorted(payment_service.PACKAGES.values(), key=lambda p: p['amount_vnd'])
+    user_identity = get_jwt_identity()
+    user = _resolve_user(user_identity)
+
+    packages = []
+    for pkg in sorted(payment_service.PACKAGES.values(), key=lambda p: p['amount_vnd']):
+        item = dict(pkg)
+        if user:
+            can_buy, reason = _can_purchase_package(user, pkg['package_id'])
+            item['can_purchase'] = can_buy
+            item['repurchase_available'] = _can_repurchase_package(user, pkg)
+            if not can_buy:
+                item['purchase_blocked_reason'] = reason
+        else:
+            item['can_purchase'] = True
+            item['repurchase_available'] = False
+        packages.append(item)
+
     return jsonify({
         "packages": packages,
         "bank": {
@@ -152,6 +209,10 @@ def create_payment():
     user = _resolve_user(user_identity)
     if not user:
         return jsonify({"error": "User not found"}), 404
+
+    can_buy, blocked_reason = _can_purchase_package(user, package_id)
+    if not can_buy:
+        return jsonify({"error": blocked_reason}), 403
 
     _mark_user_expired_pending(user.id)
 

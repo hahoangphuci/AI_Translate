@@ -43,7 +43,9 @@ _RUNNING_HEADER_RE = re.compile(
 )
 _PAGE_NO_ONLY_RE = re.compile(r"^\d{1,4}$")
 _PDF_ARTIFACT_RE = re.compile(
-    r"^(?:__?\s*[\wÀ-Ỹ]{2,10}\s*[_\s]*\d+\s*__?|[\s_,.|/-]{5,})$",
+    # Match pdf2docx internal word tokens (__word_123__) OR
+    # lines composed entirely of separator characters with NO digits (digits could be formula content).
+    r"^(?:__?\s*[\wÀ-Ỹ]{2,10}\s*[_\s]*\d+\s*__?|(?!.*\d)[\s_,.|/-]{5,})$",
     re.IGNORECASE,
 )
 _AFFILIATION_LINE_RE = re.compile(
@@ -51,7 +53,47 @@ _AFFILIATION_LINE_RE = re.compile(
     re.IGNORECASE,
 )
 _SECTION2_HEAD_RE = re.compile(r"^2\s+\S", re.IGNORECASE)
-_ASSIGNMENT_HEAD_RE = re.compile(r"^BÀI\s*\d+\s*[:：]", re.IGNORECASE)
+_PDF_SUBSET_FONT_RE = re.compile(r"^[A-Z]{6}\+(.+)$")
+_SYMBOL_FONT_HINT_RE = re.compile(r"(symbol|wingdings|webdings|dingbats?|zapf|mt\s*extra)", re.IGNORECASE)
+_UNSAFE_FONT_HINT_RE = re.compile(
+    r"(symbol|wingdings|webdings|dingbats?|zapf|mt\s*extra|marlett|itc\s*zapf|books\s*symbol|"
+    r"script|cursive|handwriting|comic\s*sans|brush\s*script|freestyle|"
+    r"segoe\s*script|lucida\s*hand|bradley|kristen|jokerman|"
+    r"papyrus|chalkduster|mistral|monotype\s*corsiva|curlz|ravie|showcard|snap\s*itc|"
+    r"calibri[-\s]*light|cambriamath|ms\s*reference|architects\s*daughter|"
+    r"Segoe\s*Print|Segoe\s*UI\s*Emoji)",
+    re.IGNORECASE,
+)
+_PS_FONT_CANONICAL = (
+    (re.compile(r"timesnewroman|times[-\s]*roman", re.I), "Times New Roman"),
+    (re.compile(r"^arial(?!.*narrow)", re.I), "Arial"),
+    (re.compile(r"helvetica", re.I), "Arial"),
+    (re.compile(r"calibri", re.I), "Calibri"),
+    (re.compile(r"cambria(?!math)", re.I), "Cambria"),
+    (re.compile(r"courier(?:\s*new)?", re.I), "Courier New"),
+    (re.compile(r"georgia", re.I), "Georgia"),
+    (re.compile(r"verdana", re.I), "Verdana"),
+    (re.compile(r"tahoma", re.I), "Tahoma"),
+    (re.compile(r"garamond", re.I), "Garamond"),
+    (re.compile(r"trebuchet", re.I), "Trebuchet MS"),
+    (re.compile(r"noto\s*sans", re.I), "Noto Sans"),
+)
+_KNOWN_WINDOWS_FONTS = {
+    "times new roman": "Times New Roman",
+    "arial": "Arial",
+    "calibri": "Calibri",
+    "cambria": "Cambria",
+    "courier new": "Courier New",
+    "georgia": "Georgia",
+    "verdana": "Verdana",
+    "tahoma": "Tahoma",
+    "garamond": "Garamond",
+    "trebuchet ms": "Trebuchet MS",
+    "noto sans": "Noto Sans",
+    "segoe ui": "Segoe UI",
+    "book antiqua": "Book Antiqua",
+    "palatino linotype": "Palatino Linotype",
+}
 
 
 def _env_bool(name: str, default: bool = False) -> bool:
@@ -59,6 +101,13 @@ def _env_bool(name: str, default: bool = False) -> bool:
     if raw is None:
         return default
     return str(raw).strip().lower() in ("1", "true", "yes", "on")
+
+
+def _env_str(name: str, default: str = "") -> str:
+    raw = os.getenv(name)
+    if raw is None:
+        return str(default)
+    return str(raw).strip()
 
 
 def normalize_bilingual_mode(mode: Optional[str]) -> str:
@@ -73,982 +122,14 @@ def normalize_bilingual_mode(mode: Optional[str]) -> str:
     return "none"
 
 
-def resolve_pdf_layout_mode(
-    analysis: Optional[Dict[str, Any]] = None,
-    paras: Optional[List] = None,
-) -> str:
-    """Return academic | conservative.
-
-    auto (default): detect journal/paper structure vs general PDF.
-    """
-    raw = (os.getenv("PDF_DOCX_LAYOUT_MODE") or "auto").strip().lower()
-    if raw in ("academic", "journal", "paper"):
-        return "academic"
-    if raw in ("conservative", "general", "regular", "plain"):
-        return "conservative"
-
-    analysis = analysis or {}
-    score = 0
-    if analysis.get("has_references"):
-        score += 2
-    if analysis.get("has_formulas"):
-        score += 1
-    if analysis.get("has_multiple_columns"):
-        score += 1
-    if int(analysis.get("pages") or 0) >= 5:
-        score += 1
-    if int(analysis.get("text_chars") or 0) >= 6000:
-        score += 1
-
-    if paras:
-        abs_i = _find_abstract_start(paras)
-        sec1 = _find_section_one_start(paras)
-        sec2 = _find_section_two_start(paras)
-        if abs_i is not None:
-            score += 3
-        if sec1 is not None:
-            score += 2
-        if sec2 is not None:
-            score += 2
-
-    return "academic" if score >= 4 else "conservative"
-
-
-def uses_regional_layout(layout_mode: str) -> bool:
-    """Regional title/abstract/body profiles are for academic PDFs only."""
-    if layout_mode == "conservative":
-        return False
-    if layout_mode == "academic":
-        return _env_bool("PDF_DOCX_REGIONAL_LAYOUT", True)
-    return _env_bool("PDF_DOCX_REGIONAL_LAYOUT", True)
-
-
-def should_preserve_pdf_lines(layout_mode: Optional[str] = None) -> bool:
-    """Keep each PDF/DOCX line separate; do not collapse soft breaks or merge paragraphs."""
-    if str(os.getenv("PDF_DOCX_PRESERVE_LINES", "1")).strip().lower() in ("0", "false", "no", "off"):
-        return False
-    if str(os.getenv("PDF_DOCX_COLLAPSE_SOFT_BREAKS", "0")).strip().lower() in ("1", "true", "yes", "on"):
-        return False
-    if layout_mode == "academic" and _env_bool("PDF_DOCX_ACADEMIC_MERGE_LINES", True):
-        return False
-    return True
-
-
-def should_merge_pdf_fragments(layout_mode: str) -> bool:
-    """Only merge pdf2docx line fragments for academic papers when explicitly allowed."""
-    if not should_preserve_pdf_lines(layout_mode):
-        return layout_mode == "academic" and _env_bool("PDF_DOCX_SANITIZE_MERGE_FRAGMENTS", True)
-    return False
-
-
-# SymbolMT / Wingdings private-use glyphs from pdf2docx
-_SYMBOL_PUA_MAP = {
-    "\uf020": " ",
-    "\uf02a": "*",
-    "\uf02b": "+",
-    "\uf076": "➤",
-    "\uf0a7": "▪",
-    "\uf0b7": "•",
-    "\uf0d8": "◆",
-}
-
-
-_LEADING_MARKER_RE = re.compile(r"^(\s*(?:[\uf02b\uf0b7\uf076\uf0a7+\-•]|o)\s*)")
-
-
-def should_preserve_symbol_glyphs() -> bool:
-    return _env_bool("PDF_DOCX_PRESERVE_SYMBOL_GLYPHS", False)
-
-
-def _is_pua_symbol_char(ch: str) -> bool:
-    return len(ch) == 1 and 0xF020 <= ord(ch) <= 0xF0FF
-
-
-def _text_has_pua_symbol(text: str) -> bool:
-    return any(_is_pua_symbol_char(c) for c in (text or ""))
-
-
-def _is_symbol_glyph_text(text: str) -> bool:
-    raw = text or ""
-    if _text_has_pua_symbol(raw):
-        without_pua = "".join(c for c in raw if not _is_pua_symbol_char(c))
-        if without_pua.strip() and re.search(r"[\w\u00C0-\u1EF9]", without_pua, flags=re.UNICODE):
-            return False
-    stripped = raw.strip()
-    if not stripped:
-        return False
-    if len(stripped) <= 2 and not re.search(r"[\w\u00C0-\u1EF9]", stripped, flags=re.UNICODE):
-        return True
-    return False
-
-
-def _split_leading_glyph_prefix(text: str) -> tuple[str, str]:
-    raw = text or ""
-    m = _LEADING_MARKER_RE.match(raw)
-    if m:
-        return m.group(1), raw[m.end() :]
-    if raw and _is_pua_symbol_char(raw[0]):
-        idx = 1
-        while idx < len(raw) and raw[idx] in " \t":
-            idx += 1
-        if idx < len(raw):
-            return raw[:idx], raw[idx:]
-    return "", raw
-
-
-def normalize_pdf_symbol_chars(text: str, *, for_match: bool = False) -> str:
-    """Map PUA glyphs to portable Unicode (optional; off when preserving original glyphs)."""
-    if not text:
-        return text
-    if not for_match and should_preserve_symbol_glyphs():
-        return text.replace("\uf020", " ")
-    out = text
-    for src, dst in _SYMBOL_PUA_MAP.items():
-        out = out.replace(src, dst)
-    return out
-
-
-def normalize_pdf_symbol_chars_in_doc(doc: docx.Document) -> int:
-    if should_preserve_symbol_glyphs():
-        return ensure_symbol_font_runs_in_doc(doc)
-    changed = 0
-    for para in doc.paragraphs:
-        if _is_in_table_cell(para):
-            continue
-        for run in para.runs:
-            raw = run.text or ""
-            if not raw:
-                continue
-            fixed = normalize_pdf_symbol_chars(raw)
-            if fixed != raw:
-                run.text = fixed
-                changed += 1
-    for table in doc.tables:
-        for row in table.rows:
-            for cell in row.cells:
-                for para in cell.paragraphs:
-                    for run in para.runs:
-                        raw = run.text or ""
-                        if not raw:
-                            continue
-                        fixed = normalize_pdf_symbol_chars(raw)
-                        if fixed != raw:
-                            run.text = fixed
-                            changed += 1
-    return changed
-
-
-def _set_run_symbol_font(run) -> None:
-    _set_run_font_name(run, "Symbol")
-
-
-def repair_latin_runs_in_symbol_font(doc: docx.Document) -> int:
-    """Symbol font on Latin letters renders as Greek glyphs — force body font."""
-    changed = 0
-    body_font = _detect_document_body_font(doc) or "Times New Roman"
-    for para in iter_all_paragraphs(doc):
-        for run in para.runs:
-            raw = run.text or ""
-            if not raw.strip():
-                continue
-            if not re.search(r"[A-Za-z\u00C0-\u1EF9]", raw, flags=re.UNICODE):
-                continue
-            fname = _read_run_font_name(run)
-            if _is_auxiliary_pdf_font(fname) or fname == "Symbol":
-                _set_run_font_name(run, body_font)
-                changed += 1
-    return changed
-
-
-def _sanitize_rpr_body_font(rpr, para, *, body_font: Optional[str] = None):
-    if rpr is None:
-        try:
-            return _fallback_body_run_rpr(para) if para is not None else None
-        except Exception:
-            return None
-    cloned = copy.deepcopy(rpr)
-    if body_font is None:
-        try:
-            doc = para.part.document if para is not None else None
-        except Exception:
-            doc = None
-        body_font = (_detect_document_body_font(doc) if doc else None) or "Times New Roman"
-    if _is_auxiliary_pdf_font(_rpr_font_name(cloned)):
-        rf = cloned.find(qn("w:rFonts"))
-        if rf is None:
-            rf = OxmlElement("w:rFonts")
-            cloned.insert(0, rf)
-        for attr in ("ascii", "hAnsi", "eastAsia", "cs"):
-            rf.set(qn(f"w:{attr}"), body_font)
-    return cloned
-
-
-def _portable_marker_text(marker: str) -> str:
-    mapped = normalize_pdf_symbol_chars(marker or "")
-    token = (mapped or "+").strip()
-    return token if token else "+"
-
-
-def strip_leading_markers_from_text(text: str) -> str:
-    """Remove leading list markers when a separate marker run already exists."""
-    out = text or ""
-    return re.sub(r"^(?:\s*[+\-•\uf02b\uf0b7]\s*)+", "", out)
-
-
-def _dedupe_leading_markers_in_paragraph(paragraph) -> int:
-    """Collapse ++ / PUA++ duplicate bullets at paragraph start."""
-    runs = [r for r in paragraph.runs if (r.text or "")]
-    if not runs:
-        return 0
-    changed = 0
-    marker_pat = re.compile(r"^[\uf02b\uf0b7\uf076\uf0a7+\-•o\s]*$", re.IGNORECASE)
-    while len(runs) >= 2 and marker_pat.match((runs[0].text or "").strip()):
-        nxt = (runs[1].text or "").lstrip()
-        if nxt.startswith(("+", "-", "•", "\uf02b", "\uf0b7")):
-            runs[1].text = re.sub(r"^(?:\s*[+\-•\uf02b\uf0b7]\s*)+", "", runs[1].text or "")
-            changed += 1
-        if marker_pat.match((runs[0].text or "").strip()) and marker_pat.match((runs[1].text or "").strip()):
-            try:
-                runs[1]._element.getparent().remove(runs[1]._element)
-                runs.pop(1)
-                changed += 1
-                continue
-            except Exception:
-                break
-        break
-    if len(runs) >= 2 and marker_pat.match((runs[0].text or "").strip()):
-        lead = (runs[1].text or "")
-        if re.match(r"^\s*[+\-•\uf02b\uf0b7]", lead):
-            runs[1].text = re.sub(r"^(?:\s*[+\-•\uf02b\uf0b7]\s*)+", "", lead)
-            changed += 1
-    return changed
-
-
-def ensure_symbol_font_runs_in_doc(doc: docx.Document) -> int:
-    """Keep PDF symbol glyphs in Symbol font; fix Latin text wrongly placed in Symbol runs."""
-    changed = 0
-    for para in iter_all_paragraphs(doc):
-        for run in para.runs:
-            raw = run.text or ""
-            if not raw:
-                continue
-            fname = _read_run_font_name(run)
-            has_word = bool(re.search(r"[\w\u00C0-\u1EF9]", raw, flags=re.UNICODE))
-            if (_is_auxiliary_pdf_font(fname) or fname == "Symbol") and has_word and not _text_has_pua_symbol(raw):
-                body = _detect_document_body_font(doc) or "Times New Roman"
-                _set_run_font_name(run, body)
-                changed += 1
-                continue
-            is_glyph = _text_has_pua_symbol(raw) or (
-                _is_auxiliary_pdf_font(fname)
-                and len(raw.strip()) <= 2
-                and not has_word
-            )
-            if not is_glyph:
-                continue
-            cleaned = raw.replace("\uf020", " ")
-            if cleaned != raw:
-                run.text = cleaned
-                changed += 1
-            if _read_run_font_name(run) != "Symbol":
-                _set_run_symbol_font(run)
-                changed += 1
-    return changed
-
-
-def _split_pdf_soft_lines(text: str) -> List[str]:
-    """Split pdf2docx merged paragraph text back into logical lines."""
-    raw = (text or "").replace("\r\n", "\n").replace("\r", "\n")
-    if not raw.strip():
-        return []
-    lines: List[str] = []
-    for chunk in raw.split("\n"):
-        chunk = chunk.strip()
-        if not chunk:
-            continue
-        parts = re.split(
-            r"\t(?=[+\-*•➕▪])|\t(?=[\uF020-\uF0FF])|(?<=\.)\s+(?=\+)",
-            chunk,
-        )
-        for part in parts:
-            part = part.strip()
-            if not should_preserve_symbol_glyphs():
-                part = normalize_pdf_symbol_chars(part)
-            if part:
-                lines.append(part)
-    return lines
-
-
-def _clone_element(elem):
-    if elem is None:
-        return None
-    return copy.deepcopy(elem)
-
-
-def _first_run_rpr(p_el):
-    for r_el in p_el.findall(qn("w:r")):
-        rpr = r_el.find(qn("w:rPr"))
-        if rpr is not None:
-            return _clone_element(rpr)
-    return None
-
-
-def _build_paragraph_element(line_text: str, ppr, rpr) -> OxmlElement:
-    new_p = OxmlElement("w:p")
-    if ppr is not None:
-        new_p.append(_clone_element(ppr))
-    r_el = OxmlElement("w:r")
-    if rpr is not None:
-        r_el.append(_clone_element(rpr))
-    t_el = OxmlElement("w:t")
-    if line_text and (line_text[0].isspace() or line_text[-1].isspace()):
-        t_el.set(qn("xml:space"), "preserve")
-    t_el.text = line_text
-    r_el.append(t_el)
-    new_p.append(r_el)
-    return new_p
-
-
-def _rewrite_paragraph_single_line(para, line_text: str, *, rpr=None) -> None:
-    p_el = para._element
-    if rpr is None:
-        rpr = _first_run_rpr(p_el)
-    for child in list(p_el):
-        if child.tag.endswith("}pPr"):
-            continue
-        p_el.remove(child)
-    r_el = OxmlElement("w:r")
-    if rpr is not None:
-        r_el.append(_clone_element(rpr))
-    t_el = OxmlElement("w:t")
-    if line_text and (line_text[0].isspace() or line_text[-1].isspace()):
-        t_el.set(qn("xml:space"), "preserve")
-    t_el.text = line_text
-    r_el.append(t_el)
-    p_el.append(r_el)
-
-
-def _rpr_font_name(rpr) -> str:
-    if rpr is None:
-        return ""
+def _env_float(name: str, default: float) -> float:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
     try:
-        rf = rpr.find(qn("w:rFonts"))
-        if rf is None:
-            return ""
-        for attr in ("ascii", "hAnsi", "eastAsia", "cs"):
-            val = rf.get(qn(f"w:{attr}"))
-            if val:
-                return str(val)
+        return float(str(raw).strip())
     except Exception:
-        pass
-    return ""
-
-
-def _fallback_body_run_rpr(para):
-    try:
-        doc = para.part.document
-    except Exception:
-        doc = None
-    font_name = (_detect_document_body_font(doc) if doc else None) or "Times New Roman"
-    rpr = OxmlElement("w:rPr")
-    rf = OxmlElement("w:rFonts")
-    for attr in ("ascii", "hAnsi", "eastAsia", "cs"):
-        rf.set(qn(f"w:{attr}"), font_name)
-    rpr.append(rf)
-    sz = _rpr_font_size(_first_run_rpr(para._element)) or 26
-    for tag in ("sz", "szCs"):
-        el = OxmlElement(f"w:{tag}")
-        el.set(qn("w:val"), str(int(sz)))
-        rpr.append(el)
-    return rpr
-
-
-def _resolve_body_run_rpr(para, base_rpr=None):
-    for fn in (_dominant_body_run_rpr, _prose_run_rpr):
-        try:
-            rpr = fn(para)
-        except Exception:
-            rpr = None
-        if rpr is not None and not _is_auxiliary_pdf_font(_rpr_font_name(rpr)):
-            return rpr
-    fb = _fallback_body_run_rpr(para)
-    if fb is not None:
-        return fb
-    return base_rpr
-
-
-def _rewrite_paragraph_run_segments(para, segments: List[tuple], *, base_rpr=None) -> None:
-    """Rebuild paragraph runs from (text, bold) segments."""
-    p_el = para._element
-    if base_rpr is None:
-        base_rpr = _first_run_rpr(p_el)
-    body_rpr = _resolve_body_run_rpr(para, base_rpr)
-    for child in list(p_el):
-        if child.tag.endswith("}pPr"):
-            continue
-        p_el.remove(child)
-    for text, bold in segments:
-        if not text:
-            continue
-        parts = []
-        prefix, rest = _split_leading_glyph_prefix(text)
-        if prefix and rest:
-            parts = [(prefix, bold), (rest, bold)]
-        else:
-            parts = [(text, bold)]
-        for chunk, chunk_bold in parts:
-            if not chunk:
-                continue
-            r_el = OxmlElement("w:r")
-            use_rpr = body_rpr
-            if should_preserve_symbol_glyphs() and _is_symbol_glyph_text(chunk):
-                use_rpr = base_rpr
-            if use_rpr is not None:
-                rpr = _clone_element(use_rpr)
-                for tag in ("w:b", "w:bCs"):
-                    old = rpr.find(qn(tag))
-                    if old is not None:
-                        rpr.remove(old)
-                if chunk_bold:
-                    b = OxmlElement("w:b")
-                    b.set(qn("w:val"), "1")
-                    rpr.append(b)
-                r_el.append(rpr)
-            elif chunk_bold:
-                rpr = OxmlElement("w:rPr")
-                b = OxmlElement("w:b")
-                b.set(qn("w:val"), "1")
-                rpr.append(b)
-                r_el.append(rpr)
-            t_el = OxmlElement("w:t")
-            if chunk and (chunk[0].isspace() or chunk[-1].isspace()):
-                t_el.set(qn("xml:space"), "preserve")
-            t_el.text = chunk
-            r_el.append(t_el)
-            p_el.append(r_el)
-
-
-def _paragraph_literal(paragraph) -> str:
-    try:
-        return "".join(r.text or "" for r in paragraph.runs)
-    except Exception:
-        return ""
-
-
-def _loosely_match_pdf_text(pdf_text: str, doc_text: str) -> bool:
-    if not (pdf_text or "").strip() or not (doc_text or "").strip():
-        return False
-    a = _normalize_match_text(pdf_text)
-    b = _normalize_match_text(doc_text)
-    if a == b:
-        return True
-    if a in b or b in a:
-        return True
-    aw = set(a.split())
-    bw = set(b.split())
-    if not aw or not bw:
-        return False
-    return len(aw & bw) / max(len(aw), len(bw)) >= 0.55
-
-
-def _apply_pdf_span_segments_to_paragraph(paragraph, span_specs: List[Dict[str, Any]]) -> bool:
-    """Rebuild runs so bold matches PDF span boundaries; keep DOCX text intact."""
-    if not span_specs:
-        return False
-    doc_text = _paragraph_literal(paragraph)
-    if not doc_text.strip():
-        return False
-
-    pdf_text = "".join(str(s.get("text") or "") for s in span_specs)
-    norm_pdf = _normalize_match_text(normalize_pdf_symbol_chars(pdf_text, for_match=True))
-    norm_doc = _normalize_match_text(doc_text)
-    if not norm_pdf or not norm_doc:
-        return False
-    if norm_pdf != norm_doc and norm_pdf not in norm_doc and norm_doc not in norm_pdf:
-        overlap = min(len(norm_pdf), len(norm_doc)) / max(len(norm_pdf), len(norm_doc))
-        if overlap < 0.82:
-            return False
-
-    weights = [len(str(s.get("text") or "")) for s in span_specs]
-    if sum(weights) <= 0:
-        return False
-
-    bold_flags = [bool(s.get("bold")) for s in span_specs]
-    chunks = _split_text_by_weights(doc_text, weights)
-    segments = [(chunk, bold_flags[i]) for i, chunk in enumerate(chunks) if chunk]
-    if not segments:
-        return False
-
-    actual = [
-        ((r.text or ""), _run_is_bold(r))
-        for r in paragraph.runs
-        if (r.text or "")
-    ]
-    if len(actual) == len(segments):
-        if all(at == et and ab == eb for (at, ab), (et, eb) in zip(actual, segments)):
-            return False
-
-    base_rpr = _first_run_rpr(paragraph._element)
-    _rewrite_paragraph_run_segments(paragraph, segments, base_rpr=base_rpr)
-    return True
-
-
-def _strip_unmatched_pdf2docx_bold(paragraph, pdf_lines: List[Dict[str, Any]]) -> int:
-    """Drop pdf2docx false-bold when no PDF line matches this paragraph."""
-    doc_text = _paragraph_literal(paragraph)
-    if not doc_text.strip():
-        return 0
-    if not any(_run_is_bold(r) for r in paragraph.runs if (r.text or "").strip()):
-        return 0
-    for pl in pdf_lines:
-        if _loosely_match_pdf_text(pl.get("text") or "", doc_text):
-            return 0
-    changed = 0
-    for run in paragraph.runs:
-        if (run.text or "").strip() and _run_is_bold(run):
-            _set_run_bold(run, False)
-            changed += 1
-    return changed
-
-
-def sync_bold_spans_from_pdf_to_doc(doc: docx.Document, pdf_path: str) -> int:
-    """Align DOCX run-level bold with the PDF text layer (ground truth)."""
-    if not pdf_path or not os.path.isfile(pdf_path):
-        return 0
-    if not _env_bool("PDF_DOCX_PDF_BOLD_SYNC", True):
-        return 0
-
-    pdf_lines = extract_pdf_paragraph_formats(pdf_path)
-    if not pdf_lines:
-        return 0
-
-    paras = list(iter_all_paragraphs(doc))
-    para_texts = [_paragraph_plain(p) for p in paras]
-    hints = _match_pdf_formats_to_paragraphs(para_texts, pdf_lines)
-
-    changed = 0
-    for para, hint in zip(paras, hints):
-        spans = (hint or {}).get("spans")
-        if spans:
-            if _apply_pdf_span_segments_to_paragraph(para, spans):
-                changed += 1
-        else:
-            changed += _strip_unmatched_pdf2docx_bold(para, pdf_lines)
-    return changed
-
-
-def _split_text_by_weights(text: str, weights: List[int]) -> List[str]:
-    n = len(weights)
-    txt = text or ""
-    if n <= 0:
-        return []
-    if n == 1:
-        return [txt]
-    if not txt:
-        return [""] * n
-
-    total_weight = max(1, sum(max(1, int(w)) for w in weights))
-    txt_len = len(txt)
-    boundaries: List[int] = []
-    acc = 0
-    for i in range(1, n):
-        acc += max(1, int(weights[i - 1]))
-        target = int(round((acc / total_weight) * txt_len))
-        target = max(1, min(txt_len - 1, target))
-        left = max(1, target - 24)
-        right = min(txt_len - 1, target + 24)
-        cut = target
-        found = None
-        p = target
-        while p >= left:
-            if txt[p - 1].isspace():
-                found = p
-                break
-            p -= 1
-        if found is None:
-            p = target + 1
-            while p <= right:
-                if txt[p - 1].isspace():
-                    found = p
-                    break
-                p += 1
-        if found is not None:
-            cut = found
-        if boundaries and cut <= boundaries[-1]:
-            cut = min(txt_len - 1, boundaries[-1] + 1)
-        boundaries.append(cut)
-
-    out: List[str] = []
-    prev = 0
-    for b in boundaries:
-        out.append(txt[prev:b])
-        prev = b
-    out.append(txt[prev:])
-    if len(out) < n:
-        out.extend([""] * (n - len(out)))
-    elif len(out) > n:
-        out = out[: n - 1] + ["".join(out[n - 1 :])]
-    return out
-
-
-def _collect_run_style_regions(runs: List) -> List[Dict[str, Any]]:
-    regions: List[Dict[str, Any]] = []
-    for run in runs:
-        chunk = run.text or ""
-        if not chunk:
-            continue
-        rpr = run._element.find(qn("w:rPr"))
-        regions.append(
-            {
-                "bold": _run_is_bold(run),
-                "rpr": copy.deepcopy(rpr) if rpr is not None else None,
-                "weight": max(1, len(chunk)),
-            }
-        )
-    return regions
-
-
-def _rebuild_para_runs_from_style_regions(paragraph, text: str, regions: List[Dict[str, Any]]) -> int:
-    if not text or not regions:
-        return 0
-    chunks = _split_text_by_weights(text, [r["weight"] for r in regions])
-    segments = [(t, regions[i]["bold"]) for i, t in enumerate(chunks) if t]
-    if not segments:
-        return 0
-    base = regions[0].get("rpr")
-    base_rpr = base if base is not None else _first_run_rpr(paragraph._element)
-    _rewrite_paragraph_run_segments(paragraph, segments, base_rpr=base_rpr)
-    return len(segments)
-
-
-def split_merged_pdf_paragraphs(doc: docx.Document) -> int:
-    """Split pdf2docx paragraphs that contain \\n/\\t merged lines into one paragraph per line."""
-    split_count = 0
-    body = doc.element.body
-    p_elements = [el for el in body if el.tag == qn("w:p")]
-
-    for p_el in reversed(p_elements):
-        para = docx.text.paragraph.Paragraph(p_el, doc)
-        if _is_in_table_cell(para):
-            continue
-        orig_runs = list(para.runs)
-        raw = "".join(r.text or "" for r in orig_runs)
-        lines = _split_pdf_soft_lines(raw)
-        if len(lines) <= 1:
-            continue
-
-        ppr = p_el.find(qn("w:pPr"))
-        ppr_copy = _clone_element(ppr)
-
-        _rewrite_paragraph_single_line(
-            para,
-            lines[0],
-            rpr=_line_rpr_for_text(orig_runs, lines[0]),
-        )
-
-        insert_after = p_el
-        for line in lines[1:]:
-            new_p = _build_paragraph_element(
-                line,
-                ppr_copy,
-                _line_rpr_for_text(orig_runs, line),
-            )
-            insert_after.addnext(new_p)
-            insert_after = new_p
-            split_count += 1
-
-    return split_count
-
-
-_PDF_CONTINUATION_START_RE = re.compile(r"^[a-z(]|^COD\b|^OnlinePayment\b")
-
-
-def _is_pdf_continuation_paragraph(prev_text: str, cur_text: str) -> bool:
-    prev = (prev_text or "").strip()
-    cur = (cur_text or "").strip()
-    if not prev or not cur:
-        return False
-    if re.match(r"^[+\-•\uf02b\uf0b7o]\s*[A-ZÀ-Ỹ]", cur):
-        return False
-    if re.match(r"^\d+\.\s*\S", cur):
-        return False
-    if prev.count("(") > prev.count(")"):
-        return True
-    if prev.rstrip().endswith((",", "(", "–", "—", "/", "như", "such as")):
-        return True
-    if _PDF_CONTINUATION_START_RE.match(cur):
-        return True
-    return False
-
-
-def merge_pdf_continuation_paragraphs(doc: docx.Document) -> int:
-    """Join pdf2docx hard line-break fragments (e.g. 'OnlinePayment,' + 'COD).')."""
-    merged = 0
-    paras = list(doc.paragraphs)
-    idx = 1
-    while idx < len(paras):
-        prev = paras[idx - 1]
-        cur = paras[idx]
-        if _is_in_table_cell(prev) or _is_in_table_cell(cur):
-            idx += 1
-            continue
-        prev_text = _paragraph_plain(prev)
-        cur_text = _paragraph_plain(cur)
-        if not _is_pdf_continuation_paragraph(prev_text, cur_text):
-            idx += 1
-            continue
-        joiner = "" if prev_text.rstrip().endswith(("(", "/")) else " "
-        combined = f"{prev_text.rstrip()}{joiner}{cur_text.lstrip()}"
-        _rewrite_paragraph_single_line(prev, combined, rpr=_first_run_rpr(prev._element))
-        try:
-            cur._element.getparent().remove(cur._element)
-            paras.pop(idx)
-            merged += 1
-            continue
-        except Exception:
-            pass
-        idx += 1
-    return merged
-
-
-def _src_has_auxiliary_font_runs(src_runs: List) -> bool:
-    for run in src_runs:
-        if _text_has_pua_symbol(run.text or ""):
-            return True
-        if _is_auxiliary_pdf_font(_read_run_font_name(run)):
-            return True
-    return False
-
-
-def _paragraph_starts_with_marker(text: str, marker: str) -> bool:
-    t = (text or "").lstrip()
-    m = (marker or "").strip()
-    if not m:
-        return True
-    if t.startswith(m):
-        return True
-    mapped = normalize_pdf_symbol_chars(m, for_match=True).strip()
-    if mapped and t.startswith(mapped):
-        return True
-    return False
-
-
-def _prepend_cloned_run(paragraph, src_run) -> None:
-    p_el = paragraph._element
-    r_el = copy.deepcopy(src_run._element)
-    first_r = p_el.find(qn("w:r"))
-    if first_r is not None:
-        first_r.addprevious(r_el)
-    else:
-        p_el.append(r_el)
-
-
-def _preserve_leading_marker_from_source(src_para, dst_para) -> int:
-    src_plain = _paragraph_literal(src_para)
-    marker = _LEADING_MARKER_RE.match(src_plain or "")
-    if not marker:
-        return 0
-    _dedupe_leading_markers_in_paragraph(dst_para)
-    marker_text = marker.group(1)
-    dst_plain = _paragraph_literal(dst_para)
-    if _paragraph_starts_with_marker(dst_plain, marker_text):
-        return 0
-    portable = _portable_marker_text(marker_text)
-    body_font = _detect_document_body_font(dst_para.part.document) or "Times New Roman"
-    p_el = dst_para._element
-    r_el = OxmlElement("w:r")
-    rpr = OxmlElement("w:rPr")
-    rf = OxmlElement("w:rFonts")
-    for attr in ("ascii", "hAnsi", "eastAsia", "cs"):
-        rf.set(qn(f"w:{attr}"), body_font)
-    rpr.append(rf)
-    r_el.append(rpr)
-    t_el = OxmlElement("w:t")
-    t_el.text = portable
-    r_el.append(t_el)
-    first_r = p_el.find(qn("w:r"))
-    if first_r is not None:
-        first_r.addprevious(r_el)
-    else:
-        p_el.append(r_el)
-    return 1
-
-
-def _normalize_font_key(name: str) -> str:
-    return re.sub(r"\s+", " ", (name or "").strip().lower())
-
-
-def _is_auxiliary_pdf_font(name: str) -> bool:
-    n = _normalize_font_key(name)
-    if not n:
-        return False
-    if any(k in n for k in ("courier", "symbol", "wingding", "monospace", "consolas")):
-        return True
-    return n in {"couriernewpsmt", "symbolmt", "zapfdingbats"}
-
-
-def _canonical_font_display_name(name: str) -> str:
-    n = _normalize_font_key(name)
-    if "times" in n:
-        return "Times New Roman"
-    if "arial" in n:
-        return "Arial"
-    if "calibri" in n:
-        return "Calibri"
-    if "noto" in n:
-        return "Noto Sans"
-    cleaned = re.sub(r"(psmt|ps-boldmt|ps-italicmt|mt)$", "", n, flags=re.IGNORECASE).strip()
-    if not cleaned:
-        return (name or "Times New Roman").strip()
-    return cleaned.title()
-
-
-def _read_run_font_name(run) -> str:
-    try:
-        if run.font.name:
-            return str(run.font.name)
-    except Exception:
-        pass
-    try:
-        rpr = run._element.find(qn("w:rPr"))
-        if rpr is None:
-            return ""
-        rf = rpr.find(qn("w:rFonts"))
-        if rf is None:
-            return ""
-        for attr in ("ascii", "hAnsi", "eastAsia", "cs"):
-            val = rf.get(qn(f"w:{attr}"))
-            if val:
-                return str(val)
-    except Exception:
-        pass
-    return ""
-
-
-def _set_run_font_name(run, font_name: str) -> None:
-    if not font_name:
-        return
-    try:
-        r_el = run._element
-        rpr = r_el.find(qn("w:rPr"))
-        if rpr is None:
-            rpr = OxmlElement("w:rPr")
-            r_el.insert(0, rpr)
-        rf = rpr.find(qn("w:rFonts"))
-        if rf is None:
-            rf = OxmlElement("w:rFonts")
-            rpr.insert(0, rf)
-        for attr in ("ascii", "hAnsi", "eastAsia", "cs"):
-            rf.set(qn(f"w:{attr}"), font_name)
-        try:
-            run.font.name = font_name
-        except Exception:
-            pass
-    except Exception:
-        pass
-
-
-def _detect_document_body_font(doc: docx.Document) -> Optional[str]:
-    counts: Dict[str, int] = {}
-    for para in iter_all_paragraphs(doc):
-        for run in para.runs:
-            text = (run.text or "").strip()
-            if len(text) < 2:
-                continue
-            fname = _read_run_font_name(run)
-            if not fname or _is_auxiliary_pdf_font(fname):
-                continue
-            key = _canonical_font_display_name(fname)
-            counts[key] = counts.get(key, 0) + len(text)
-    if not counts:
-        return "Times New Roman"
-    return max(counts, key=counts.get)
-
-
-def unify_pdf_docx_fonts(doc: docx.Document) -> int:
-    """Map Courier/Symbol pdf2docx fonts to the document body font (usually Times New Roman)."""
-    if not _env_bool("PDF_DOCX_UNIFY_FONTS", True):
-        return 0
-    body_font = _detect_document_body_font(doc)
-    if not body_font:
-        body_font = "Times New Roman"
-    changed = 0
-    for para in iter_all_paragraphs(doc):
-        for run in para.runs:
-            raw = run.text or ""
-            if not raw:
-                continue
-            if _text_has_pua_symbol(raw):
-                _set_run_symbol_font(run)
-                continue
-            fname = _read_run_font_name(run)
-            if _is_auxiliary_pdf_font(fname) and len(raw.strip()) <= 2:
-                if not re.search(r"[\w\u00C0-\u1EF9]", raw, flags=re.UNICODE):
-                    _set_run_symbol_font(run)
-                    continue
-            canon = _canonical_font_display_name(fname) if fname else body_font
-            needs_unify = (
-                not fname
-                or _is_auxiliary_pdf_font(fname)
-                or canon != body_font
-                or fname != body_font
-            )
-            if not needs_unify:
-                continue
-            _set_run_font_name(run, body_font)
-            changed += 1
-    return changed
-
-
-def _detect_body_font_size_halfpts(doc: docx.Document) -> int:
-    sizes: List[int] = []
-    for para in iter_all_paragraphs(doc):
-        if _paragraph_should_be_bold(para):
-            continue
-        for run in para.runs:
-            if not (run.text or "").strip():
-                continue
-            if _run_is_bold(run):
-                continue
-            sz = _rpr_font_size(run._element.find(qn("w:rPr")))
-            if sz > 0:
-                sizes.append(sz)
-    if not sizes:
-        return 26
-    sizes.sort()
-    return sizes[len(sizes) // 2]
-
-
-def _normalize_body_run_sizes(doc: docx.Document) -> int:
-    """Raise tiny Courier/pdf2docx sizes to document body size."""
-    if not _env_bool("PDF_DOCX_UNIFY_FONTS", True):
-        return 0
-    target = _detect_body_font_size_halfpts(doc)
-    if target <= 0:
-        return 0
-    changed = 0
-    for para in iter_all_paragraphs(doc):
-        for run in para.runs:
-            if not (run.text or "").strip():
-                continue
-            rpr = run._element.find(qn("w:rPr"))
-            if rpr is None:
-                rpr = OxmlElement("w:rPr")
-                run._element.insert(0, rpr)
-            sz = _rpr_font_size(rpr)
-            if sz >= target:
-                continue
-            if _paragraph_should_be_bold(para) and len((run.text or "").strip()) > 2:
-                continue
-            for tag in ("w:sz", "w:szCs"):
-                old = rpr.find(qn(tag))
-                if old is not None:
-                    rpr.remove(old)
-                el = OxmlElement(tag)
-                el.set(qn("w:val"), str(int(target)))
-                rpr.append(el)
-            changed += 1
-    return changed
+        return default
 
 
 def _paragraph_plain(paragraph) -> str:
@@ -1088,8 +169,6 @@ def _is_section_heading_line(paragraph) -> bool:
         return True
     if re.match(r"^\d+\s+[A-ZÀ-Ỹ]", text) and _paragraph_word_count(paragraph) <= 8:
         return True
-    if _ASSIGNMENT_HEAD_RE.match(text) and _paragraph_word_count(paragraph) <= 16:
-        return True
     return False
 
 
@@ -1125,6 +204,303 @@ def iter_all_paragraphs(doc: docx.Document) -> Iterator:
             for cell in row.cells:
                 for paragraph in cell.paragraphs:
                     yield paragraph
+
+
+def _strip_pdf_subset_font_prefix(name: Optional[str]) -> Optional[str]:
+    if name is None:
+        return None
+    out = str(name).strip()
+    if not out:
+        return out
+    while True:
+        m = _PDF_SUBSET_FONT_RE.match(out)
+        if not m:
+            break
+        nxt = str(m.group(1) or "").strip()
+        if not nxt or nxt == out:
+            break
+        out = nxt
+    return out
+
+
+def _normalize_rfonts_attrs(rfonts_el) -> int:
+    if rfonts_el is None:
+        return 0
+    changed = 0
+    for attr in ("w:ascii", "w:hAnsi", "w:eastAsia", "w:cs"):
+        try:
+            current = rfonts_el.get(qn(attr))
+        except Exception:
+            current = None
+        if not current:
+            continue
+        cleaned = _strip_pdf_subset_font_prefix(current)
+        if cleaned and cleaned != current:
+            try:
+                rfonts_el.set(qn(attr), cleaned)
+                changed += 1
+            except Exception:
+                pass
+    return changed
+
+
+def _normalize_run_font_names(run) -> int:
+    changed = 0
+    try:
+        current = getattr(getattr(run, "font", None), "name", None)
+        cleaned = _strip_pdf_subset_font_prefix(current)
+        if cleaned and cleaned != current:
+            run.font.name = cleaned
+            changed += 1
+    except Exception:
+        pass
+    try:
+        rpr = run._element.find(qn("w:rPr"))
+        if rpr is not None:
+            rfonts = rpr.find(qn("w:rFonts"))
+            changed += _normalize_rfonts_attrs(rfonts)
+    except Exception:
+        pass
+    return changed
+
+
+def _iter_table_paragraphs_recursive(table) -> Iterator:
+    for row in table.rows:
+        for cell in row.cells:
+            for paragraph in cell.paragraphs:
+                yield paragraph
+            for nested_table in cell.tables:
+                yield from _iter_table_paragraphs_recursive(nested_table)
+
+
+def _iter_all_paragraphs_for_font_fix(doc: docx.Document) -> Iterator:
+    for paragraph in doc.paragraphs:
+        yield paragraph
+    for table in doc.tables:
+        yield from _iter_table_paragraphs_recursive(table)
+
+    seen_header_footer = set()
+    for section in doc.sections:
+        for header_footer in (section.header, section.footer):
+            try:
+                key = id(header_footer._element)
+            except Exception:
+                key = id(header_footer)
+            if key in seen_header_footer:
+                continue
+            seen_header_footer.add(key)
+
+            for paragraph in header_footer.paragraphs:
+                yield paragraph
+            for table in header_footer.tables:
+                yield from _iter_table_paragraphs_recursive(table)
+
+
+def _normalize_style_font_names(doc: docx.Document) -> int:
+    changed = 0
+    try:
+        for style in doc.styles:
+            try:
+                current = getattr(getattr(style, "font", None), "name", None)
+                cleaned = _strip_pdf_subset_font_prefix(current)
+                if cleaned and cleaned != current:
+                    style.font.name = cleaned
+                    changed += 1
+            except Exception:
+                pass
+
+            try:
+                style_el = getattr(style, "element", None) or getattr(style, "_element", None)
+                if style_el is None:
+                    continue
+                rpr = style_el.find(qn("w:rPr"))
+                if rpr is None:
+                    continue
+                rfonts = rpr.find(qn("w:rFonts"))
+                changed += _normalize_rfonts_attrs(rfonts)
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    try:
+        styles_el = getattr(doc.styles, "element", None)
+        if styles_el is not None:
+            doc_defaults = styles_el.find(qn("w:docDefaults"))
+            if doc_defaults is not None:
+                rpr_default = doc_defaults.find(qn("w:rPrDefault"))
+                if rpr_default is not None:
+                    rpr = rpr_default.find(qn("w:rPr"))
+                    if rpr is not None:
+                        rfonts = rpr.find(qn("w:rFonts"))
+                        changed += _normalize_rfonts_attrs(rfonts)
+    except Exception:
+        pass
+
+    return changed
+
+
+def _normalize_subset_font_names_in_doc(doc: docx.Document) -> int:
+    if not _env_bool("PDF_DOCX_NORMALIZE_SUBSET_FONTS", True):
+        return 0
+    changed = 0
+    for paragraph in _iter_all_paragraphs_for_font_fix(doc):
+        for run in paragraph.runs:
+            changed += _normalize_run_font_names(run)
+    changed += _normalize_style_font_names(doc)
+    return changed
+
+
+def _pdf_docx_text_font_fallback() -> str:
+    return _env_str("PDF_DOCX_TEXT_FONT_FALLBACK", "Times New Roman") or "Times New Roman"
+
+
+def _run_font_name_candidates(run) -> List[str]:
+    names: List[str] = []
+    seen = set()
+    try:
+        current = getattr(getattr(run, "font", None), "name", None)
+        if current:
+            cleaned = _strip_pdf_subset_font_prefix(current) or ""
+            if cleaned and cleaned.lower() not in seen:
+                seen.add(cleaned.lower())
+                names.append(cleaned)
+    except Exception:
+        pass
+    try:
+        rpr = run._element.find(qn("w:rPr"))
+        if rpr is not None:
+            rfonts = rpr.find(qn("w:rFonts"))
+            if rfonts is not None:
+                for attr in ("w:ascii", "w:hAnsi", "w:eastAsia", "w:cs"):
+                    val = rfonts.get(qn(attr))
+                    if not val:
+                        continue
+                    cleaned = _strip_pdf_subset_font_prefix(val) or ""
+                    if cleaned and cleaned.lower() not in seen:
+                        seen.add(cleaned.lower())
+                        names.append(cleaned)
+    except Exception:
+        pass
+    return names
+
+
+def _canonical_document_font_name(name: Optional[str]) -> str:
+    fallback = _pdf_docx_text_font_fallback()
+    cleaned = _strip_pdf_subset_font_prefix(name) or ""
+    cleaned = re.sub(r"\s+", " ", str(cleaned)).strip()
+    if not cleaned:
+        return fallback
+    if _UNSAFE_FONT_HINT_RE.search(cleaned) or _SYMBOL_FONT_HINT_RE.search(cleaned):
+        return fallback
+    low = cleaned.lower()
+    if low in _KNOWN_WINDOWS_FONTS:
+        return _KNOWN_WINDOWS_FONTS[low]
+    if re.search(r"PSMT|PS-Bold|PS-Italic|BoldItalicMT|,-?Bold(?:MT)?$", cleaned, re.I):
+        for pattern, canonical in _PS_FONT_CANONICAL:
+            if pattern.search(cleaned):
+                return canonical
+        return fallback
+    for pattern, canonical in _PS_FONT_CANONICAL:
+        if pattern.search(cleaned):
+            return canonical
+    if _env_bool("PDF_DOCX_CANONICALIZE_UNKNOWN_FONTS", True):
+        return fallback
+    return cleaned
+
+
+def _set_run_font_name(run, font_name: str) -> None:
+    target = (font_name or "").strip()
+    if not target:
+        return
+    try:
+        run.font.name = target
+    except Exception:
+        pass
+    try:
+        rpr = run._element.find(qn("w:rPr"))
+        if rpr is None:
+            rpr = OxmlElement("w:rPr")
+            run._element.insert(0, rpr)
+        rfonts = rpr.find(qn("w:rFonts"))
+        if rfonts is None:
+            rfonts = OxmlElement("w:rFonts")
+            rpr.append(rfonts)
+        for attr in ("w:ascii", "w:hAnsi", "w:eastAsia", "w:cs"):
+            rfonts.set(qn(attr), target)
+    except Exception:
+        pass
+
+
+def _canonicalize_rfonts_in_rpr(rpr, text: str = "") -> bool:
+    if rpr is None:
+        return False
+    rfonts = rpr.find(qn("w:rFonts"))
+    if rfonts is None:
+        return False
+    _normalize_rfonts_attrs(rfonts)
+    has_text_tokens = bool(re.search(r"[A-Za-zÀ-ỹ0-9]", text or "", flags=re.UNICODE))
+    has_list_marker = bool(re.search(r"[+\-•*]", text or ""))
+    if not (has_text_tokens or has_list_marker):
+        return False
+    current = None
+    for attr in ("w:ascii", "w:hAnsi", "w:eastAsia", "w:cs"):
+        val = rfonts.get(qn(attr))
+        if val:
+            current = val
+            break
+    canonical = _canonical_document_font_name(current)
+    if not canonical:
+        return False
+    changed = False
+    for attr in ("w:ascii", "w:hAnsi", "w:eastAsia", "w:cs"):
+        cur = rfonts.get(qn(attr))
+        if cur:
+            nxt = _canonical_document_font_name(cur)
+            if nxt and nxt != cur:
+                rfonts.set(qn(attr), nxt)
+                changed = True
+        elif canonical:
+            rfonts.set(qn(attr), canonical)
+            changed = True
+    return changed
+
+
+def _sanitize_run_text_font(run, text: str = "") -> int:
+    raw = text if text is not None else (run.text or "")
+    if not re.search(r"[A-Za-zÀ-ỹ0-9]", raw or "", flags=re.UNICODE):
+        return 0
+    changed = _normalize_run_font_names(run)
+    candidates = _run_font_name_candidates(run)
+    source_name = candidates[0] if candidates else ""
+    canonical = _canonical_document_font_name(source_name)
+    if not canonical:
+        return changed
+    if source_name and source_name != canonical:
+        _set_run_font_name(run, canonical)
+        changed += 1
+    try:
+        rpr = run._element.find(qn("w:rPr"))
+        if _canonicalize_rfonts_in_rpr(rpr, raw):
+            changed += 1
+    except Exception:
+        pass
+    return changed
+
+
+def sanitize_document_text_fonts(doc: docx.Document) -> int:
+    """Map pdf2docx/PS/script fonts to stable Windows-safe fonts before PDF export."""
+    if not _env_bool("PDF_DOCX_SANITIZE_FONTS", True):
+        return 0
+    changed = 0
+    for paragraph in _iter_all_paragraphs_for_font_fix(doc):
+        for run in paragraph.runs:
+            try:
+                changed += _sanitize_run_text_font(run, run.text or "")
+            except Exception:
+                continue
+    changed += _normalize_style_font_names(doc)
+    return changed
 
 
 def _dominant_font_pt(paragraph) -> Optional[float]:
@@ -1186,6 +562,129 @@ def _find_section_two_start(paras: List, *, min_index: int = 0) -> Optional[int]
     return None
 
 
+def _analysis_is_academic_like(analysis: Optional[Dict[str, Any]]) -> bool:
+    if not isinstance(analysis, dict):
+        return False
+    if bool(analysis.get("is_academic_like")):
+        return True
+    try:
+        return int(analysis.get("academic_score") or 0) >= 5
+    except Exception:
+        return False
+
+
+def _preserve_layout_mode() -> str:
+    mode = _env_str("PDF_DOCX_PRESERVE_LAYOUT_MODE", "force").lower()
+    if mode in ("force", "strict", "mirror", "on", "1", "true", "yes"):
+        return "force"
+    if mode in ("off", "disable", "disabled", "0", "false", "no"):
+        return "off"
+    return "auto"
+
+
+def _doc_looks_academic_like(doc_obj: Optional[docx.Document]) -> bool:
+    if doc_obj is None:
+        return False
+    try:
+        paras = list(doc_obj.paragraphs)
+    except Exception:
+        return False
+    if len(paras) < 10:
+        return False
+
+    abs_idx = _find_abstract_start(paras)
+    kw_idx = _find_keywords_paragraph_index(paras, abs_idx if abs_idx is not None else 0)
+    sec1 = _find_section_one_start(paras)
+    sec2 = _find_section_two_start(paras, min_index=(sec1 + 1) if sec1 is not None else 0)
+
+    refs_hits = 0
+    numbered_hits = 0
+    for paragraph in paras[: min(len(paras), 180)]:
+        text = _paragraph_plain(paragraph).lower()
+        if not text:
+            continue
+        if refs_hits < 2 and re.search(
+            r"\b(references|reference|bibliography|tài liệu tham khảo|tai lieu tham khao)\b",
+            text,
+            re.IGNORECASE,
+        ):
+            refs_hits += 1
+        if numbered_hits < 6 and re.match(r"^\d{1,2}(?:\.\d+)?\s+[a-zà-ỹ]", text):
+            numbered_hits += 1
+
+    score = 0
+    if abs_idx is not None:
+        score += 2
+    if kw_idx is not None:
+        score += 1
+    if sec1 is not None:
+        score += 1
+    if sec2 is not None:
+        score += 1
+    if refs_hits:
+        score += 2
+    if numbered_hits >= 2:
+        score += 1
+    if abs_idx is not None and sec1 is not None and abs_idx < sec1:
+        score += 1
+
+    return bool(score >= 5 or (score >= 4 and refs_hits > 0))
+
+
+def _should_apply_regional_layout(
+    *,
+    doc: Optional[docx.Document] = None,
+    src_doc: Optional[docx.Document] = None,
+    analysis: Optional[Dict[str, Any]] = None,
+) -> bool:
+    preserve_mode = _preserve_layout_mode()
+    mode = _env_str("PDF_DOCX_REGIONAL_MODE", "auto").lower()
+
+    # Explicit regional force works unless strict source-layout preservation is forced.
+    if mode in ("force", "on", "1", "true", "yes", "regional"):
+        return preserve_mode != "force"
+    if mode in ("off", "0", "false", "no", "source", "safe", "disable", "disabled"):
+        return False
+
+    # Keep strict source-layout by default to avoid damaging normal PDFs.
+    if preserve_mode == "force":
+        return False
+
+    # Backward-compatible hard off switch.
+    if not _env_bool("PDF_DOCX_REGIONAL_LAYOUT", True):
+        return False
+
+    if _analysis_is_academic_like(analysis):
+        return True
+    if _doc_looks_academic_like(src_doc):
+        return True
+    if _doc_looks_academic_like(doc):
+        return True
+    return False
+
+
+def _should_preserve_source_layout(
+    *,
+    doc: Optional[docx.Document] = None,
+    src_doc: Optional[docx.Document] = None,
+    analysis: Optional[Dict[str, Any]] = None,
+) -> bool:
+    mode = _preserve_layout_mode()
+    if mode == "force":
+        return True
+    if mode == "off":
+        return False
+
+    # auto: preserve source layout for non-academic docs; allow regional only when academic-like.
+    if _analysis_is_academic_like(analysis):
+        return False
+    if _doc_looks_academic_like(src_doc):
+        return False
+    if _doc_looks_academic_like(doc):
+        return False
+    return True
+
+
 def is_running_header_text(text: str) -> bool:
     t = (text or "").replace("\r", " ").replace("\n", " ").strip()
     if not t:
@@ -1213,15 +712,63 @@ def is_pdf_artifact_text(text: str) -> bool:
         return True
     if re.search(r"__?\s*HOU[\s_\d]*__?", t, re.IGNORECASE):
         return True
-    if re.match(r"^[,.\s|_\-]+$", t):
+    # Pure separator/whitespace lines — only if they contain NO digits and NO math symbols.
+    if re.match(r"^[,.\s|_\-]+$", t) and not re.search(r"[\d\u0391-\u03C9\u2200-\u22FF\u2190-\u21FF]", t):
         return True
+    # Strings dominated by separator chars — exclude any with digits, Unicode math, or operators.
+    # These could be formula expressions rendered as plain text from PDF.
+    has_math = bool(re.search(
+        r"[\d=+*/^(){}\[\]<>≤≥≠∑∫∏√∞±∓∂∇"
+        r"\u0391-\u03C9"       # Greek
+        r"\u2200-\u22FF"       # Math operators
+        r"\u2190-\u21FF"       # Arrows
+        r"\u00B2\u00B3\u00B9"  # ² ³ ¹
+        r"\u2070-\u2079"       # Superscript digits
+        r"\u2080-\u2089"       # Subscript digits
+        r"]", t
+    ))
+    if has_math:
+        return False
     letters = len(re.findall(r"[A-Za-zÀ-ỹ]", t))
     if len(t) <= 48 and letters <= 2 and re.search(r"[_|,.\s-]{3,}", t):
         return True
     return False
 
 
+def _para_has_drawing(paragraph) -> bool:
+    """Return True if the paragraph contains any drawing, image, or VML picture element.
+
+    Such paragraphs must never be removed or merged, as they may hold formula images,
+    charts, or other embedded objects that cannot be reconstructed from text.
+    """
+    try:
+        return bool(
+            paragraph._element.xpath(
+                './/*[local-name()="drawing" or local-name()="pict"'
+                ' or local-name()="object" or local-name()="OLEObject"]'
+            )
+        )
+    except Exception:
+        return False
+
+
+def _para_has_omath(paragraph) -> bool:
+    """Return True if the paragraph contains Office Math (OMML) markup."""
+    try:
+        return bool(paragraph._element.xpath('.//*[local-name()="oMath" or local-name()="oMathPara"]'))
+    except Exception:
+        return False
+
+
+def _para_has_protected_content(paragraph) -> bool:
+    """True if a paragraph contains drawings, OMML math, or bookmarks that must be preserved."""
+    return _para_has_drawing(paragraph) or _para_has_omath(paragraph)
+
+
 def _is_noise_paragraph(paragraph) -> bool:
+    # Never remove paragraphs that carry drawings, formulas, or embedded objects.
+    if _para_has_protected_content(paragraph):
+        return False
     text = _paragraph_plain(paragraph)
     return is_running_header_text(text) or is_pdf_artifact_text(text)
 
@@ -1253,15 +800,41 @@ _INLINE_ARTIFACT_RE = re.compile(
 )
 
 
+def _run_has_drawing(run) -> bool:
+    """Return True if the run contains a drawing or VML picture child element."""
+    try:
+        return bool(
+            run._element.xpath(
+                './*[local-name()="drawing" or local-name()="pict"'
+                ' or local-name()="object"]'
+            )
+        )
+    except Exception:
+        return False
+
+
 def _strip_inline_pdf_artifacts(doc: docx.Document) -> int:
-    """Remove pdf2docx placeholder tokens left inside paragraph runs."""
+    """Remove pdf2docx placeholder tokens left inside paragraph runs.
+
+    Skips runs that contain drawings or embedded objects to avoid destroying
+    formula images or embedded content when clearing run text.
+    """
     stripped = 0
     for para in doc.paragraphs:
+        # Skip the entire paragraph if it contains any drawing/formula element.
+        if _para_has_protected_content(para):
+            continue
         changed = False
         for run in para.runs:
+            # Skip runs that hold drawing elements — setting run.text would remove them.
+            if _run_has_drawing(run):
+                continue
             raw = run.text or ""
             if not raw:
                 continue
+            # Skip pure-whitespace runs — they may carry <w:br/> soft-break elements
+            # that must not be destroyed (setting run.text calls clear_content() which
+            # removes ALL child XML including <w:br/>).
             if not raw.strip():
                 continue
             cleaned = _INLINE_ARTIFACT_RE.sub("", raw)
@@ -1735,12 +1308,10 @@ def normalize_converted_docx_layout_in_doc(
     *,
     pdf_path: Optional[str] = None,
     src_doc: Optional[docx.Document] = None,
-    layout_mode: str = "academic",
+    analysis: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, int]:
     """Fix pdf2docx center alignment and inconsistent indents before/after translation."""
     stats: Dict[str, int] = {"alignment_normalized": 0, "indents_normalized": 0}
-    if layout_mode == "conservative":
-        return stats
     if not _env_bool("PDF_DOCX_NORMALIZE_ALIGN", True):
         return stats
 
@@ -1748,7 +1319,12 @@ def normalize_converted_docx_layout_in_doc(
     if not paras:
         return stats
 
-    if uses_regional_layout(layout_mode):
+    # Normal PDFs: keep source layout instead of heuristic normalization.
+    if _should_preserve_source_layout(doc=doc, src_doc=src_doc, analysis=analysis):
+        stats["source_layout_preserved"] = len(paras)
+        return stats
+
+    if _should_apply_regional_layout(doc=doc, src_doc=src_doc, analysis=analysis):
         regional = _apply_regional_layout_profiles(
             doc,
             pdf_path=pdf_path,
@@ -1760,7 +1336,7 @@ def normalize_converted_docx_layout_in_doc(
         return stats
 
     title_end, abs_start, abstract_end, body_start, sec2 = _detect_layout_regions(paras)
-    force_justify = _env_bool("PDF_DOCX_FORCE_BODY_JUSTIFY", True)
+    force_justify = _env_bool("PDF_DOCX_FORCE_BODY_JUSTIFY", False)
     content_twips = _get_content_width_twips(doc)
     body_profile, abstract_profile = _resolve_layout_profiles(doc, paras, pdf_path=pdf_path)
 
@@ -1846,59 +1422,25 @@ def sanitize_converted_docx(
     docx_path: str,
     *,
     pdf_path: Optional[str] = None,
-    layout_mode: str = "academic",
+    analysis: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, int]:
     """Clean pdf2docx noise + normalize body alignment/indents before translation."""
     if not os.path.isfile(docx_path):
-        return {"noise_removed": 0, "alignment_normalized": 0, "indents_normalized": 0}
+        return {
+            "noise_removed": 0,
+            "alignment_normalized": 0,
+            "indents_normalized": 0,
+            "font_names_normalized": 0,
+        }
     doc = docx.Document(docx_path)
-    stats: Dict[str, int] = {
-        "noise_removed": 0,
-        "alignment_normalized": 0,
-        "indents_normalized": 0,
-    }
-    if should_preserve_pdf_lines(layout_mode):
-        stats["symbols_normalized"] = normalize_pdf_symbol_chars_in_doc(doc)
-        stats["lines_split"] = split_merged_pdf_paragraphs(doc)
-        stats["lines_merged"] = merge_pdf_continuation_paragraphs(doc)
-        stats["fonts_unified"] = unify_pdf_docx_fonts(doc)
-        stats["sizes_normalized"] = _normalize_body_run_sizes(doc)
-        if pdf_path and os.path.isfile(pdf_path):
-            stats["pdf_bold_synced"] = sync_bold_spans_from_pdf_to_doc(doc, pdf_path)
-        if _env_bool("PDF_DOCX_STRIP_NOISE", True):
-            noise = strip_noise_paragraphs(doc)
-            stats["noise_removed"] = int(noise.get("noise_removed", 0))
-            stats["inline_artifacts_stripped"] = int(noise.get("inline_artifacts_stripped", 0))
-        try:
-            from app.services.docx_service import apply_docx_paragraph_spacing
-
-            spaced = 0
-            for para in doc.paragraphs:
-                before = "".join(r.text or "" for r in para.runs)
-                apply_docx_paragraph_spacing(para)
-                after = "".join(r.text or "" for r in para.runs)
-                if before != after:
-                    spaced += 1
-            stats["spacing_fixed"] = spaced
-            stats["latin_font_repaired"] = repair_latin_runs_in_symbol_font(doc)
-        except Exception:
-            pass
-    else:
-        stats.update(strip_noise_paragraphs(doc))
-    if pdf_path and os.path.isfile(pdf_path):
-        stats["pdf_bold_synced"] = stats.get("pdf_bold_synced", 0) or sync_bold_spans_from_pdf_to_doc(doc, pdf_path)
-    if should_merge_pdf_fragments(layout_mode):
+    stats = strip_noise_paragraphs(doc)
+    stats["font_names_normalized"] = _normalize_subset_font_names_in_doc(doc)
+    stats["fonts_sanitized"] = sanitize_document_text_fonts(doc)
+    if _env_bool("PDF_DOCX_SANITIZE_MERGE_FRAGMENTS", False):
         paras = list(doc.paragraphs)
         sec2 = _find_section_two_start(paras) or len(paras)
         stats["fragments_merged"] = _collapse_pre_section2_fragments(doc, paras, sec2)
-    if layout_mode == "academic":
-        stats.update(
-            normalize_converted_docx_layout_in_doc(
-                doc,
-                pdf_path=pdf_path,
-                layout_mode=layout_mode,
-            )
-        )
+    stats.update(normalize_converted_docx_layout_in_doc(doc, pdf_path=pdf_path, analysis=analysis))
     if any(int(v or 0) for v in stats.values()):
         doc.save(docx_path)
     return stats
@@ -2004,6 +1546,21 @@ def _copy_paragraph_layout_template(src_para, dst_para, *, include_spacing: bool
             cloned.remove(spacing)
     dst_ppr = dst_para._element.find(qn("w:pPr"))
     _copy_paragraph_properties(cloned, dst_ppr)
+
+
+def _sync_paragraph_layout_like_inline(
+    src_para,
+    dst_para,
+    *,
+    include_spacing: bool = True,
+) -> None:
+    """Copy source paragraph layout, then downgrade pdf2docx false center on body lines.
+
+    Inline bilingual uses this in recover_docx_layout; newline reuses the same rule.
+    """
+    _copy_paragraph_layout_template(src_para, dst_para, include_spacing=include_spacing)
+    if _paragraph_is_centered(dst_para) and not _is_section_heading_line(dst_para):
+        _set_paragraph_alignment(dst_para, WD_PARAGRAPH_ALIGNMENT.JUSTIFY)
 
 
 def _set_paragraph_indents(
@@ -2325,6 +1882,41 @@ def _copy_run_rpr(src_run, dst_run) -> None:
         if src_rpr is None:
             return
         new_rpr = copy.deepcopy(src_rpr)
+
+        # Normalize subset font prefixes and avoid applying symbol fonts to regular text runs.
+        rfonts = new_rpr.find(qn("w:rFonts"))
+        _normalize_rfonts_attrs(rfonts)
+        if rfonts is not None:
+            is_symbol_font = False
+            for attr in ("w:ascii", "w:hAnsi", "w:eastAsia", "w:cs"):
+                try:
+                    val = rfonts.get(qn(attr))
+                except Exception:
+                    val = None
+                if val and _SYMBOL_FONT_HINT_RE.search(str(val)):
+                    is_symbol_font = True
+                    break
+
+            dst_text = ""
+            try:
+                dst_text = dst_run.text or ""
+            except Exception:
+                dst_text = ""
+
+            has_text_tokens = bool(re.search(r"[A-Za-zÀ-ỹ0-9]", dst_text, flags=re.UNICODE))
+            has_list_marker = bool(re.search(r"[+\-•*]", dst_text))
+
+            # pdf2docx often stores bullets/markers in symbol fonts; when those
+            # formats are copied to translated runs, markers can render as tofu boxes.
+            # Force text fallback not only for alphanumeric content, but also for
+            # common list markers.
+            if is_symbol_font and (has_text_tokens or has_list_marker):
+                fallback = _pdf_docx_text_font_fallback()
+                for attr in ("w:ascii", "w:hAnsi", "w:eastAsia", "w:cs"):
+                    rfonts.set(qn(attr), fallback)
+
+        _canonicalize_rfonts_in_rpr(new_rpr, dst_text)
+
         dst_rpr = dst_run._element.find(qn("w:rPr"))
         if dst_rpr is not None:
             dst_run._element.remove(dst_rpr)
@@ -2336,13 +1928,26 @@ def _copy_run_rpr(src_run, dst_run) -> None:
 def _dominant_source_run(runs: List) -> Optional[Any]:
     if not runs:
         return None
-    best = runs[0]
-    best_len = len(best.text or "")
-    for run in runs[1:]:
-        n = len(run.text or "")
-        if n > best_len:
+    best = None
+    best_score = -10**9
+    for run in runs:
+        text = run.text or ""
+        score = len(re.findall(r"[A-Za-zÀ-ỹ0-9]", text, flags=re.UNICODE)) * 10 + len(text.strip())
+        try:
+            rpr = run._element.find(qn("w:rPr"))
+            rfonts = rpr.find(qn("w:rFonts")) if rpr is not None else None
+            if rfonts is not None:
+                for attr in ("w:ascii", "w:hAnsi", "w:eastAsia", "w:cs"):
+                    val = rfonts.get(qn(attr))
+                    if val and _SYMBOL_FONT_HINT_RE.search(str(val)):
+                        score -= 10000
+                        break
+        except Exception:
+            pass
+
+        if best is None or score > best_score:
             best = run
-            best_len = n
+            best_score = score
     return best
 
 
@@ -2371,17 +1976,401 @@ def _preserve_paragraph_style(src_para, dst_para) -> None:
         pass
 
 
+def _pdf_hint_raw_align_key(hint: Optional[Dict[str, Any]]) -> str:
+    if not hint:
+        return ""
+    return str(hint.get("align") or "left").lower()
+
+
+def _pdf_line_is_geometrically_centered(
+    hint: Optional[Dict[str, Any]],
+    *,
+    max_width_ratio: float = 0.72,
+) -> bool:
+    """True when PDF text block is short and sits near page horizontal center."""
+    if not hint or _pdf_hint_raw_align_key(hint) != "center":
+        return False
+    pw = float(hint.get("page_width") or 0)
+    x0 = hint.get("x0")
+    x1 = hint.get("x1")
+    if x0 is None or x1 is None or pw <= 0:
+        return True
+    width = max(0.0, float(x1) - float(x0))
+    if width >= pw * max_width_ratio:
+        return False
+    mid = (float(x0) + float(x1)) / 2.0
+    return abs(mid - pw / 2.0) <= pw * 0.12
+
+
+def _should_preserve_center_alignment(
+    paragraph,
+    para_index: int,
+    title_end: int,
+    pdf_hint: Optional[Dict[str, Any]],
+) -> bool:
+    """Keep center only for lines that are genuinely centered in the source PDF."""
+    text = _paragraph_plain(paragraph)
+    if not text.strip():
+        return False
+    if _is_section_heading_line(paragraph) and re.match(r"^\d+\.", text.strip()):
+        return False
+    if len(text) >= 45 or _paragraph_word_count(paragraph) >= 8:
+        return False
+
+    raw_align = _pdf_hint_raw_align_key(pdf_hint)
+    if raw_align in ("left", "right", "justify", "both"):
+        return False
+
+    geo_center = _pdf_line_is_geometrically_centered(pdf_hint)
+    if geo_center:
+        if para_index < title_end:
+            return len(text) <= 160 and _paragraph_word_count(paragraph) <= 22
+        return len(text) <= 100 and _paragraph_word_count(paragraph) <= 15
+
+    if para_index < title_end:
+        return bool(
+            _paragraph_is_centered(paragraph)
+            and len(text) <= 160
+            and _paragraph_word_count(paragraph) <= 22
+            and raw_align != "left"
+        )
+    return False
+
+
+def _lookup_pdf_hint_for_text(
+    text: str,
+    src_paras: List,
+    pdf_hints: List[Optional[Dict[str, Any]]],
+    *,
+    bilingual_delimiter: str = "|",
+) -> Optional[Dict[str, Any]]:
+    """Match a dst paragraph back to a src index for PDF alignment hints."""
+    raw = (text or "").strip()
+    if not raw:
+        return None
+    d = (bilingual_delimiter or "|").strip()
+    if d and d in raw:
+        raw = raw.split(d, 1)[0].strip()
+    norm = _normalize_match_text(raw)
+    if not norm:
+        return None
+    best_i: Optional[int] = None
+    best_score = 0.0
+    for i, src_p in enumerate(src_paras):
+        src_norm = _normalize_match_text(_paragraph_plain(src_p))
+        if not src_norm:
+            continue
+        if norm == src_norm:
+            return pdf_hints[i] if i < len(pdf_hints) else None
+        if norm in src_norm or src_norm in norm:
+            score = min(len(norm), len(src_norm)) / max(len(norm), len(src_norm), 1)
+        else:
+            a = set(norm.split())
+            b = set(src_norm.split())
+            if not a or not b:
+                continue
+            score = len(a & b) / max(len(a), len(b))
+        if score > best_score:
+            best_score = score
+            best_i = i
+    if best_i is not None and best_score >= 0.45:
+        return pdf_hints[best_i] if best_i < len(pdf_hints) else None
+    return None
+
+
+def _fix_spurious_center_alignment_in_doc(
+    doc: docx.Document,
+    src_doc: docx.Document,
+    *,
+    pdf_path: Optional[str] = None,
+    bilingual_delimiter: str = "|",
+) -> int:
+    """Force left/justify on body paragraphs; pdf2docx often marks them centered."""
+    src_paras = list(src_doc.paragraphs)
+    title_end, _, _, _, _ = _detect_layout_regions(src_paras)
+    pdf_hints: List[Optional[Dict[str, Any]]] = []
+    if pdf_path and os.path.isfile(pdf_path):
+        pdf_formats = extract_pdf_paragraph_formats(pdf_path)
+        src_texts = [_paragraph_plain(p) for p in src_paras]
+        pdf_hints = _match_pdf_formats_to_paragraphs(src_texts, pdf_formats)
+
+    fixed = 0
+    src_cursor = 0
+    for i, para in enumerate(doc.paragraphs):
+        if _is_in_table_cell(para):
+            continue
+        text = _paragraph_plain(para)
+        if not text.strip() or not _paragraph_is_centered(para):
+            continue
+        hint = _lookup_pdf_hint_for_text(
+            text,
+            src_paras,
+            pdf_hints,
+            bilingual_delimiter=bilingual_delimiter,
+        )
+        para_index = min(src_cursor, max(0, len(src_paras) - 1))
+        if _should_preserve_center_alignment(para, para_index, title_end, hint):
+            src_cursor = min(src_cursor + 1, len(src_paras) - 1)
+            continue
+
+        align = WD_PARAGRAPH_ALIGNMENT.JUSTIFY
+        pdf_align = _alignment_enum_from_pdf_hint(hint)
+        if pdf_align and pdf_align != WD_PARAGRAPH_ALIGNMENT.CENTER:
+            align = pdf_align
+        elif _is_section_heading_line(para) or re.match(r"^\d+\.", text.strip()):
+            align = WD_PARAGRAPH_ALIGNMENT.LEFT
+
+        ppr = para._element.find(qn("w:pPr"))
+        jc = ppr.find(qn("w:jc")) if ppr is not None else None
+        if jc is not None:
+            ppr.remove(jc)
+        _clear_paragraph_indents_and_tabs(para)
+        _set_paragraph_alignment(para, align)
+        if align != WD_PARAGRAPH_ALIGNMENT.CENTER:
+            _set_paragraph_indents(para, left=0, right=0, first_line=0, hanging=0)
+        fixed += 1
+        src_cursor = min(src_cursor + 1, len(src_paras) - 1)
+    return fixed
+
+
+def _clear_paragraph_indents_and_tabs(paragraph) -> None:
+    """Remove paragraph indents/tab stops only (keep alignment jc intact)."""
+    ppr = paragraph._element.find(qn("w:pPr"))
+    if ppr is None:
+        return
+    for tag in ("w:ind", "w:tabs"):
+        el = ppr.find(qn(tag))
+        if el is not None:
+            ppr.remove(el)
+
+
+def _paragraph_has_false_pdf2docx_body_offset(
+    paragraph,
+    *,
+    content_twips: int,
+    text: Optional[str] = None,
+) -> bool:
+    """Detect margin-as-indent offsets on body lines (not genuine title center)."""
+    plain = (text or _paragraph_plain(paragraph) or "").strip()
+    if not plain:
+        return False
+    ppr = paragraph._element.find(qn("w:pPr"))
+    ind = _read_ppr_ind_twips(ppr)
+    left = int(ind.get("left", 0))
+    right = int(ind.get("right", 0))
+    first_line = int(ind.get("firstLine", 0))
+    hanging = int(ind.get("hanging", 0))
+    if first_line >= 360 or hanging >= 360:
+        return len(plain) >= 20
+    if left >= 360 or right >= 360:
+        if len(plain) < 20 and _paragraph_is_centered(paragraph):
+            return True
+        return len(plain) >= 20
+    if _is_abstract_style_indent(left, right) or _is_narrow_column_indent(left, right, content_twips):
+        return len(plain) >= 20
+    # pdf2docx stores page margin (~1054 twips) as paragraph left indent on body text.
+    if 400 <= left <= 1800 and right <= 360 and len(plain) >= 30:
+        return True
+    return False
+
+
+def _apply_standard_newline_paragraph_layout(
+    paragraph,
+    *,
+    src_i: int = 0,
+    title_end: int = 0,
+    abs_start: int = 0,
+    abstract_end: int = 0,
+    body_start: int = 0,
+    is_heading: bool = False,
+    pdf_hint: Optional[Dict[str, Any]] = None,
+    content_twips: int = 9024,
+    src_para=None,
+) -> bool:
+    """Fix pdf2docx false center/indents; preserve genuine PDF-centered title lines."""
+    text = _paragraph_plain(paragraph)
+    if not text.strip():
+        return False
+
+    preserve_center = _should_preserve_center_alignment(
+        paragraph, src_i, title_end, pdf_hint
+    )
+    false_offset = _paragraph_has_false_pdf2docx_body_offset(
+        paragraph, content_twips=content_twips, text=text
+    )
+
+    if preserve_center:
+        if not false_offset:
+            return False
+        _clear_paragraph_indents_and_tabs(paragraph)
+        _set_paragraph_indents(paragraph, left=0, right=0, first_line=0, hanging=0)
+        if not _paragraph_is_centered(paragraph):
+            _set_paragraph_alignment(paragraph, WD_PARAGRAPH_ALIGNMENT.CENTER)
+        return True
+
+    if is_heading or _is_section_heading_line(paragraph) or re.match(r"^\d+\.", text.strip()):
+        ppr = paragraph._element.find(qn("w:pPr"))
+        jc = ppr.find(qn("w:jc")) if ppr is not None else None
+        if jc is not None:
+            ppr.remove(jc)
+        _clear_paragraph_indents_and_tabs(paragraph)
+        _set_paragraph_alignment(paragraph, WD_PARAGRAPH_ALIGNMENT.LEFT)
+        _set_paragraph_indents(paragraph, left=0, right=0, first_line=0, hanging=0)
+        return True
+
+    needs_fix = (
+        false_offset
+        or _docx_center_is_likely_pdf2docx_artifact(paragraph, text)
+        or (
+            _paragraph_is_centered(paragraph)
+            and len(text) >= 12
+            and not preserve_center
+        )
+    )
+    if not needs_fix:
+        return False
+
+    ref = src_para if src_para is not None else paragraph
+    align = _resolve_newline_bilingual_alignment(
+        ref,
+        paragraph,
+        src_i=src_i,
+        pdf_hint=pdf_hint,
+        abs_start=abs_start,
+        abstract_end=abstract_end,
+        body_start=body_start,
+        title_end=title_end,
+    )
+
+    ppr = paragraph._element.find(qn("w:pPr"))
+    jc = ppr.find(qn("w:jc")) if ppr is not None else None
+    if jc is not None:
+        ppr.remove(jc)
+    _clear_paragraph_indents_and_tabs(paragraph)
+    _set_paragraph_alignment(paragraph, align)
+    if align != WD_PARAGRAPH_ALIGNMENT.CENTER:
+        _set_paragraph_indents(paragraph, left=0, right=0, first_line=0, hanging=0)
+    return True
+
+
+def _paragraph_needs_newline_layout_reset(
+    paragraph,
+    *,
+    title_end: int,
+    src_i: int,
+    content_twips: int,
+    pdf_hint: Optional[Dict[str, Any]] = None,
+) -> bool:
+    text = _paragraph_plain(paragraph)
+    if not text.strip():
+        return False
+
+    preserve_center = _should_preserve_center_alignment(
+        paragraph, src_i, title_end, pdf_hint
+    )
+    false_offset = _paragraph_has_false_pdf2docx_body_offset(
+        paragraph, content_twips=content_twips, text=text
+    )
+    if preserve_center:
+        return false_offset
+
+    if _paragraph_is_centered(paragraph) and len(text) >= 12:
+        return True
+    if len(text) < 12:
+        return false_offset
+    return false_offset or _docx_center_is_likely_pdf2docx_artifact(paragraph, text)
+
+
+def apply_post_split_newline_layout(orig_para, trans_para) -> None:
+    """After inline→split: keep layout like inline; alignment pass runs in recovery."""
+    if orig_para is not None and trans_para is not None:
+        _tighten_newline_pair_spacing(orig_para, trans_para)
+
+
+def _alignment_enum_from_pdf_hint(
+    hint: Optional[Dict[str, Any]],
+    *,
+    fallback: Optional[WD_PARAGRAPH_ALIGNMENT] = None,
+) -> Optional[WD_PARAGRAPH_ALIGNMENT]:
+    """Map PyMuPDF line hint to Word alignment; downgrade false center on wide lines."""
+    if not hint:
+        return fallback
+    align_map = {
+        "left": WD_PARAGRAPH_ALIGNMENT.LEFT,
+        "center": WD_PARAGRAPH_ALIGNMENT.CENTER,
+        "right": WD_PARAGRAPH_ALIGNMENT.RIGHT,
+        "justify": WD_PARAGRAPH_ALIGNMENT.JUSTIFY,
+    }
+    align_key = str(hint.get("align") or "left").lower()
+    pw = float(hint.get("page_width") or 0)
+    x0 = hint.get("x0")
+    x1 = hint.get("x1")
+    text_len = len(str(hint.get("text") or ""))
+    if x0 is not None and x1 is not None and pw > 0:
+        width = max(0.0, float(x1) - float(x0))
+        if align_key == "center" and width >= pw * 0.38:
+            align_key = "justify"
+        if align_key == "center" and (width >= pw * 0.28 or text_len >= 45):
+            align_key = "left"
+    return align_map.get(align_key, fallback)
+
+
+def _docx_center_is_likely_pdf2docx_artifact(paragraph, text: str) -> bool:
+    """pdf2docx often marks full-width body paragraphs as centered."""
+    if not _paragraph_is_centered(paragraph):
+        return False
+    plain = (text or "").strip()
+    if len(plain) >= 40 or _paragraph_word_count(paragraph) >= 8:
+        return True
+    if _is_section_heading_line(paragraph):
+        return False
+    return len(plain) >= 20
+
+
+def _resolve_newline_bilingual_alignment(
+    src_p,
+    orig_dst,
+    *,
+    src_i: int,
+    pdf_hint: Optional[Dict[str, Any]],
+    abs_start: int,
+    abstract_end: int,
+    body_start: int,
+    title_end: int,
+    prefer_justify: bool = True,
+) -> WD_PARAGRAPH_ALIGNMENT:
+    """Pick alignment for stacked bilingual pairs; PDF hint beats pdf2docx jc."""
+    text = _paragraph_plain(orig_dst)
+
+    if _should_preserve_center_alignment(orig_dst, src_i, title_end, pdf_hint):
+        return WD_PARAGRAPH_ALIGNMENT.CENTER
+
+    pdf_align = _alignment_enum_from_pdf_hint(pdf_hint)
+    if pdf_align is not None and pdf_align != WD_PARAGRAPH_ALIGNMENT.CENTER:
+        return pdf_align
+
+    if _is_section_heading_line(orig_dst) and _paragraph_word_count(orig_dst) <= 10:
+        return WD_PARAGRAPH_ALIGNMENT.LEFT
+
+    if _docx_center_is_likely_pdf2docx_artifact(orig_dst, text):
+        return WD_PARAGRAPH_ALIGNMENT.JUSTIFY if prefer_justify else WD_PARAGRAPH_ALIGNMENT.LEFT
+
+    jc = _paragraph_jc_val(orig_dst) or _paragraph_jc_val(src_p) or ""
+    if jc == "right":
+        return WD_PARAGRAPH_ALIGNMENT.RIGHT
+    if jc in ("both", "justify", "distribute"):
+        return WD_PARAGRAPH_ALIGNMENT.JUSTIFY
+    if jc == "center":
+        return WD_PARAGRAPH_ALIGNMENT.JUSTIFY if prefer_justify else WD_PARAGRAPH_ALIGNMENT.LEFT
+
+    return WD_PARAGRAPH_ALIGNMENT.JUSTIFY if prefer_justify else WD_PARAGRAPH_ALIGNMENT.LEFT
+
+
 def _apply_pdf_format_hint(paragraph, hint: Dict[str, Any], *, apply_alignment: bool = False) -> None:
     if not hint:
         return
     if apply_alignment:
-        align_map = {
-            "left": WD_PARAGRAPH_ALIGNMENT.LEFT,
-            "center": WD_PARAGRAPH_ALIGNMENT.CENTER,
-            "right": WD_PARAGRAPH_ALIGNMENT.RIGHT,
-            "justify": WD_PARAGRAPH_ALIGNMENT.JUSTIFY,
-        }
-        align = align_map.get(str(hint.get("align") or "").lower())
+        align = _alignment_enum_from_pdf_hint(hint)
         if align is not None:
             _set_paragraph_alignment(paragraph, align)
 
@@ -2395,16 +2384,6 @@ def _apply_pdf_format_hint(paragraph, hint: Dict[str, Any], *, apply_alignment: 
     bold = hint.get("bold")
     italic = hint.get("italic")
     if bold is None and italic is None:
-        return
-    if _paragraph_has_mixed_bold(paragraph):
-        return
-    if _env_bool("PDF_DOCX_PRESERVE_LINES", True) and bold is not None:
-        if _paragraph_should_be_bold(paragraph):
-            for run in paragraph.runs:
-                _set_run_bold(run, bool(bold))
-        else:
-            for run in paragraph.runs:
-                _set_run_bold(run, False)
         return
     for run in paragraph.runs:
         try:
@@ -2445,10 +2424,9 @@ def extract_pdf_paragraph_formats(pdf_path: str) -> List[Dict[str, Any]]:
                     spans = line.get("spans") or []
                     if not spans:
                         continue
-                    text_raw = "".join(str(sp.get("text") or "") for sp in spans).strip()
-                    if not text_raw:
+                    text = "".join(str(sp.get("text") or "") for sp in spans).strip()
+                    if not text:
                         continue
-                    text = normalize_pdf_symbol_chars(text_raw)
 
                     sizes = [float(sp.get("size") or 0) for sp in spans if sp.get("text")]
                     font_size = max(sizes) if sizes else None
@@ -2491,30 +2469,10 @@ def extract_pdf_paragraph_formats(pdf_path: str) -> List[Dict[str, Any]]:
                         elif width >= page_width * 0.58 and abs(left_m - right_m) <= max(12.0, page_width * 0.03):
                             align = "justify"
 
-                    span_specs: List[Dict[str, Any]] = []
-                    for sp in spans:
-                        chunk = str(sp.get("text") or "")
-                        if should_preserve_symbol_glyphs():
-                            chunk = chunk.replace("\uf020", " ")
-                        else:
-                            chunk = normalize_pdf_symbol_chars(chunk)
-                        if not chunk:
-                            continue
-                        span_specs.append(
-                            {
-                                "text": chunk,
-                                "bold": bool(int(sp.get("flags") or 0) & _FLAG_BOLD),
-                                "italic": bool(int(sp.get("flags") or 0) & _FLAG_ITALIC),
-                                "size": float(sp.get("size") or 0) or None,
-                            }
-                        )
-
                     formats.append(
                         {
                             "text": text,
-                            "text_norm": _normalize_match_text(
-                                normalize_pdf_symbol_chars(text_raw, for_match=True)
-                            ),
+                            "text_norm": _normalize_match_text(text),
                             "font_size": font_size,
                             "bold": bool(total_chars and bold_chars * 100 >= total_chars * 60),
                             "italic": bool(total_chars and italic_chars * 100 >= total_chars * 50),
@@ -2523,7 +2481,6 @@ def extract_pdf_paragraph_formats(pdf_path: str) -> List[Dict[str, Any]]:
                             "x0": x0,
                             "x1": x1,
                             "page_width": page_width,
-                            "spans": span_specs,
                         }
                     )
     finally:
@@ -2569,11 +2526,9 @@ def sync_formats_from_pdf(
     source_docx: str,
     translated_docx: str,
     pdf_path: str,
-    *,
-    force: bool = False,
 ) -> Dict[str, int]:
     stats = {"pdf_formats_applied": 0}
-    if not force and not _env_bool("PDF_DOCX_PDF_FORMAT_SYNC", False):
+    if not _env_bool("PDF_DOCX_PDF_FORMAT_SYNC", True):
         return stats
     if not os.path.isfile(source_docx) or not os.path.isfile(translated_docx):
         return stats
@@ -2662,6 +2617,9 @@ def _sync_region_by_offset(
 
 
 def _should_merge_fragment(prev_para, next_para) -> bool:
+    # Never merge paragraphs that contain drawings or math — merging loses the embedded objects.
+    if _para_has_protected_content(prev_para) or _para_has_protected_content(next_para):
+        return False
     t1 = _paragraph_plain(prev_para)
     t2 = _paragraph_plain(next_para)
     if not t1 or not t2:
@@ -3257,17 +3215,24 @@ def _fix_indents_from_pdf_geometry(
 
 
 def _collapse_excessive_blank_paragraphs(doc: docx.Document) -> int:
-    """Remove stacked empty paragraphs that create large vertical gaps."""
+    """Remove stacked empty paragraphs that create large vertical gaps.
+
+    Paragraphs that contain drawings, OMML formulas, or embedded objects are
+    never removed even when their visible text is empty.
+    """
     removed = 0
     paras = list(doc.paragraphs)
     blank_streak = 0
     idx = 0
     while idx < len(paras):
-        if not _paragraph_plain(paras[idx]):
+        para = paras[idx]
+        has_text = bool(_paragraph_plain(para))
+        # Paragraphs with drawings/math are treated as non-blank regardless of text.
+        if not has_text and not _para_has_protected_content(para):
             blank_streak += 1
             if blank_streak > 1:
                 try:
-                    paras[idx]._element.getparent().remove(paras[idx]._element)
+                    para._element.getparent().remove(para._element)
                     paras.pop(idx)
                     removed += 1
                     continue
@@ -3403,6 +3368,8 @@ def _looks_like_subtitle_line(text: str) -> bool:
 
 
 def _should_merge_title_block_fragment(prev_para, next_para) -> bool:
+    if _para_has_protected_content(prev_para) or _para_has_protected_content(next_para):
+        return False
     t1 = _paragraph_plain(prev_para).strip()
     t2 = _paragraph_plain(next_para).strip()
     if not t1 or not t2:
@@ -3537,355 +3504,9 @@ def _run_is_superscript_run(run) -> bool:
     return False
 
 
-def _run_is_bold(run) -> bool:
-    try:
-        if run.bold is True:
-            return True
-        if getattr(getattr(run, "font", None), "bold", None) is True:
-            return True
-    except Exception:
-        pass
-    try:
-        rpr = run._element.find(qn("w:rPr"))
-        if rpr is None:
-            return False
-        b = rpr.find(qn("w:b"))
-        if b is None:
-            return False
-        val = str(b.get(qn("w:val"), "") or "").strip().lower()
-        return val not in ("0", "false", "off")
-    except Exception:
-        return False
-
-
-def _set_run_bold(run, bold: bool) -> None:
-    try:
-        run.bold = bool(bold)
-    except Exception:
-        pass
-    try:
-        rpr = run._element.find(qn("w:rPr"))
-        if rpr is None:
-            if not bold:
-                return
-            rpr = OxmlElement("w:rPr")
-            run._element.insert(0, rpr)
-        for tag in ("w:b", "w:bCs"):
-            old = rpr.find(qn(tag))
-            if old is not None:
-                rpr.remove(old)
-            if bold:
-                el = OxmlElement(tag)
-                el.set(qn("w:val"), "1")
-                rpr.append(el)
-    except Exception:
-        pass
-
-
-def _copy_run_rpr_style(src_run, dst_run, *, include_fonts: bool = False) -> bool:
-    src_rpr = src_run._element.find(qn("w:rPr"))
-    if src_rpr is None:
-        return False
-    try:
-        dst_rpr = dst_run._element.find(qn("w:rPr"))
-        if dst_rpr is None:
-            dst_rpr = OxmlElement("w:rPr")
-            dst_run._element.insert(0, dst_rpr)
-        tags = ["w:sz", "w:szCs", "w:b", "w:bCs", "w:i", "w:iCs", "w:vertAlign"]
-        if include_fonts:
-            tags.insert(0, "w:rFonts")
-        for tag in tags:
-            src_el = src_rpr.find(qn(tag))
-            old = dst_rpr.find(qn(tag))
-            if old is not None:
-                dst_rpr.remove(old)
-            if src_el is not None:
-                dst_rpr.append(copy.deepcopy(src_el))
-        return True
-    except Exception:
-        return False
-
-
-def _paragraph_has_mixed_bold(paragraph) -> bool:
-    runs = [r for r in paragraph.runs if (r.text or "").strip()]
-    if len(runs) < 2:
-        return False
-    states = {_run_is_bold(r) for r in runs}
-    return len(states) > 1
-
-
-def _paragraph_has_heading_typography(paragraph) -> bool:
-    """Short line with a visibly larger dominant run (heading size without bold flag)."""
-    if _paragraph_word_count(paragraph) > 24:
-        return False
-    runs = [r for r in paragraph.runs if (r.text or "").strip()]
-    if not runs:
-        return False
-
-    def _is_list_marker_run(run) -> bool:
-        text = (run.text or "").strip()
-        if len(text) <= 2 and text.lower() in ("o", "•", "-", "+", "*", "·"):
-            return True
-        return bool(re.match(r"^[\u2022\u25cf\u25cb\u2013\-\+]$", text))
-
-    content_runs = [r for r in runs if not _is_list_marker_run(r)]
-    if not content_runs:
-        return False
-
-    sizes = [_rpr_font_size(r._element.find(qn("w:rPr"))) for r in content_runs]
-    sizes = [s for s in sizes if s > 0]
-    if not sizes:
-        return False
-    max_sz = max(sizes)
-    if len(content_runs) == 1 and len((content_runs[0].text or "").strip()) <= 2:
-        return False
-    non_bold_sizes = [
-        _rpr_font_size(r._element.find(qn("w:rPr")))
-        for r in content_runs
-        if not _run_is_bold(r)
-    ]
-    non_bold_sizes = [s for s in non_bold_sizes if s > 0]
-    ref = min(non_bold_sizes) if non_bold_sizes else min(sizes)
-    return max_sz >= ref + 4
-
-
-def _paragraph_should_be_bold(paragraph) -> bool:
-    if _paragraph_has_mixed_bold(paragraph):
-        return False
-    if _is_section_heading_line(paragraph):
-        return True
-    if _paragraph_has_heading_typography(paragraph):
-        return True
-    runs = [r for r in paragraph.runs if (r.text or "").strip()]
-    if not runs:
-        return False
-    total = sum(len(r.text or "") for r in runs)
-    bold_chars = sum(len(r.text or "") for r in runs if _run_is_bold(r))
-    return total > 0 and (bold_chars * 100 >= total * 70)
-
-
-def _pick_heading_source_run(paragraph):
-    best_run = None
-    best_key = (-1, False)
-    for run in paragraph.runs:
-        if not (run.text or "").strip():
-            continue
-        sz = _rpr_font_size(run._element.find(qn("w:rPr")))
-        key = (sz, _run_is_bold(run))
-        if key > best_key:
-            best_key = key
-            best_run = run
-    return best_run
-
-
-def _heading_run_rpr(paragraph):
-    run = _pick_heading_source_run(paragraph)
-    if run is None:
-        return None
-    return run._element.find(qn("w:rPr"))
-
-
-def _apply_template_rpr_to_run(run, template_rpr, para=None) -> None:
-    template_rpr = _sanitize_rpr_body_font(template_rpr, para)
-    if template_rpr is None:
-        return
-    try:
-        old = run._element.find(qn("w:rPr"))
-        if old is not None:
-            run._element.remove(old)
-        run._element.insert(0, copy.deepcopy(template_rpr))
-    except Exception:
-        pass
-
-
-def pick_translation_template_rpr(paragraph):
-    """Choose run properties when translated text replaces a whole paragraph."""
-    if _paragraph_should_be_bold(paragraph):
-        heading = _heading_run_rpr(paragraph)
-        if heading is not None:
-            return _sanitize_rpr_body_font(heading, paragraph)
-    prose = _prose_run_rpr(paragraph)
-    if prose is not None:
-        cloned = copy.deepcopy(prose)
-        if _paragraph_has_mixed_bold(paragraph) or not _paragraph_should_be_bold(paragraph):
-            try:
-                dst_rpr = cloned
-                for tag in ("w:b", "w:bCs"):
-                    old = dst_rpr.find(qn(tag))
-                    if old is not None:
-                        dst_rpr.remove(old)
-            except Exception:
-                pass
-        return _sanitize_rpr_body_font(cloned, paragraph)
-    for run in paragraph.runs:
-        if not (run.text or "").strip():
-            continue
-        fname = _read_run_font_name(run)
-        if _is_auxiliary_pdf_font(fname) or _text_has_pua_symbol(run.text or ""):
-            continue
-        rpr = run._element.find(qn("w:rPr"))
-        if rpr is not None:
-            return _sanitize_rpr_body_font(rpr, paragraph)
-    return _sanitize_rpr_body_font(_fallback_body_run_rpr(paragraph), paragraph)
-
-
-def _prose_run_rpr(paragraph):
-    """Median-size non-bold run rPr — avoids picking heading sizes for body text."""
-    candidates: List[tuple] = []
-    for run in paragraph.runs:
-        if not (run.text or "").strip():
-            continue
-        if _run_is_superscript_run(run):
-            continue
-        fname = _read_run_font_name(run)
-        if fname and _is_auxiliary_pdf_font(fname):
-            continue
-        rpr = run._element.find(qn("w:rPr"))
-        sz = _rpr_font_size(rpr)
-        if sz <= 0:
-            continue
-        candidates.append((_run_is_bold(run), sz, rpr))
-    if not candidates:
-        return _dominant_body_run_rpr(paragraph)
-    non_bold = [c for c in candidates if not c[0]]
-    pool = non_bold if non_bold else candidates
-    pool.sort(key=lambda item: item[1])
-    return pool[len(pool) // 2][2]
-
-
-def _line_rpr_for_text(runs: List, line_text: str):
-    needle = (line_text or "").strip()[:24]
-    if not needle:
-        return None
-    cursor = 0
-    for run in runs:
-        chunk = run.text or ""
-        start = cursor
-        cursor += len(chunk)
-        if needle in chunk or needle in ("".join(r.text or "" for r in runs)[start:cursor]):
-            rpr = run._element.find(qn("w:rPr"))
-            if rpr is not None:
-                return copy.deepcopy(rpr)
-    for run in runs:
-        if (run.text or "").strip():
-            rpr = run._element.find(qn("w:rPr"))
-            if rpr is not None:
-                return copy.deepcopy(rpr)
-    return None
-
-
-_FORM_FIELD_LINE_RE = re.compile(
-    r"(?:TV\s*\d|MSSV|Email|Class|Lớp|Họ\s*&?\s*Tên|Tên\s*Đề\s*tài|Development\s+direction)",
-    re.IGNORECASE | re.UNICODE,
-)
-
-
-def _is_form_field_paragraph(text: str) -> bool:
-    return bool(_FORM_FIELD_LINE_RE.search(text or ""))
-
-
-def _pick_style_source_run(src_runs: List, index: int) -> object:
-    if not src_runs:
-        raise ValueError("src_runs empty")
-    src_i = min(index, len(src_runs) - 1)
-    candidate = src_runs[src_i]
-    fname = _read_run_font_name(candidate)
-    if _is_auxiliary_pdf_font(fname) or _text_has_pua_symbol(candidate.text or ""):
-        for run in src_runs:
-            rt = run.text or ""
-            if not rt.strip():
-                continue
-            fn = _read_run_font_name(run)
-            if _is_auxiliary_pdf_font(fn) or _text_has_pua_symbol(rt):
-                continue
-            return run
-    return candidate
-
-
-def _sync_run_styles_from_source(src_para, dst_para) -> int:
-    """Restore bold/italic/size on translated runs from pre-translation paragraph."""
-    src_runs = [r for r in src_para.runs if (r.text or "")]
-    dst_runs = [r for r in dst_para.runs if (r.text or "")]
-    if not src_runs or not dst_runs:
-        return 0
-
-    synced = 0
-    if len(dst_runs) == 1:
-        dst_text = dst_runs[0].text or ""
-        regions = _collect_run_style_regions(src_runs)
-        if (
-            len(regions) > 1
-            and dst_text
-            and not _src_has_auxiliary_font_runs(src_runs)
-            and not (len(dst_runs) == 1 and len(regions) >= 4)
-        ):
-            return _rebuild_para_runs_from_style_regions(dst_para, dst_text, regions)
-        dst_run = dst_runs[0]
-        src_plain = _paragraph_literal(src_para)
-        if _is_form_field_paragraph(src_plain):
-            prose = next(
-                (
-                    r
-                    for r in src_runs
-                    if not _is_auxiliary_pdf_font(_read_run_font_name(r))
-                    and not _text_has_pua_symbol(r.text or "")
-                ),
-                src_runs[-1],
-            )
-            _copy_run_rpr_style(prose, dst_run)
-            _set_run_bold(dst_run, False)
-            synced += 1
-            return synced
-        if _paragraph_should_be_bold(src_para) and not _paragraph_has_mixed_bold(src_para):
-            _copy_run_rpr_style(_pick_heading_source_run(src_para) or src_runs[0], dst_run)
-        else:
-            prose = next(
-                (
-                    r
-                    for r in src_runs
-                    if not _run_is_bold(r)
-                    and not _is_auxiliary_pdf_font(_read_run_font_name(r))
-                    and not _text_has_pua_symbol(r.text or "")
-                ),
-                src_runs[-1],
-            )
-            _copy_run_rpr_style(prose, dst_run)
-            if not _paragraph_has_mixed_bold(src_para):
-                _set_run_bold(dst_run, False)
-        synced += 1
-        return synced
-
-    for i, dst_run in enumerate(dst_runs):
-        dst_text = dst_run.text or ""
-        if _is_symbol_glyph_text(dst_text) or _text_has_pua_symbol(dst_text):
-            continue
-        if len(src_runs) == 1:
-            src_run = src_runs[0]
-        else:
-            src_run = _pick_style_source_run(src_runs, i)
-        if _copy_run_rpr_style(src_run, dst_run):
-            synced += 1
-    return synced
-
-
 def _dominant_body_run_rpr(paragraph):
     best_rpr = None
     best_sz = -1
-    for run in paragraph.runs:
-        if not (run.text or "").strip():
-            continue
-        if _run_is_superscript_run(run):
-            continue
-        fname = _read_run_font_name(run)
-        if fname and _is_auxiliary_pdf_font(fname):
-            continue
-        rpr = run._element.find(qn("w:rPr"))
-        sz = _rpr_font_size(rpr)
-        if sz > best_sz:
-            best_sz = sz
-            best_rpr = rpr
-    if best_rpr is not None:
-        return best_rpr
     for run in paragraph.runs:
         if not (run.text or "").strip():
             continue
@@ -3897,28 +3518,6 @@ def _dominant_body_run_rpr(paragraph):
             best_sz = sz
             best_rpr = rpr
     return best_rpr
-
-
-def _merge_run_size_rpr(dst_run, src_rpr) -> bool:
-    if src_rpr is None:
-        return False
-    try:
-        r_el = dst_run._element
-        dst_rpr = r_el.find(qn("w:rPr"))
-        if dst_rpr is None:
-            dst_rpr = OxmlElement("w:rPr")
-            r_el.insert(0, dst_rpr)
-        for tag in ("w:sz", "w:szCs"):
-            src_el = src_rpr.find(qn(tag))
-            if src_el is None:
-                continue
-            old = dst_rpr.find(qn(tag))
-            if old is not None:
-                dst_rpr.remove(old)
-            dst_rpr.append(copy.deepcopy(src_el))
-        return True
-    except Exception:
-        return False
 
 
 def _merge_run_font_rpr(dst_run, src_rpr) -> bool:
@@ -3938,6 +3537,7 @@ def _merge_run_font_rpr(dst_run, src_rpr) -> bool:
             if old is not None:
                 dst_rpr.remove(old)
             dst_rpr.append(copy.deepcopy(src_el))
+        _canonicalize_rfonts_in_rpr(dst_rpr, dst_run.text or "")
         for tag in ("w:caps", "w:smallCaps"):
             old = dst_rpr.find(qn(tag))
             if old is not None:
@@ -3947,9 +3547,35 @@ def _merge_run_font_rpr(dst_run, src_rpr) -> bool:
         return False
 
 
+def _sync_translation_layout_from_orig(orig_para, trans_para) -> None:
+    """Mirror finalized orig paragraph alignment/indents onto the translation line."""
+    jc = _paragraph_jc_val(orig_para) or "left"
+    jc_map = {
+        "center": WD_PARAGRAPH_ALIGNMENT.CENTER,
+        "right": WD_PARAGRAPH_ALIGNMENT.RIGHT,
+        "both": WD_PARAGRAPH_ALIGNMENT.JUSTIFY,
+        "justify": WD_PARAGRAPH_ALIGNMENT.JUSTIFY,
+        "distribute": WD_PARAGRAPH_ALIGNMENT.JUSTIFY,
+        "left": WD_PARAGRAPH_ALIGNMENT.LEFT,
+        "start": WD_PARAGRAPH_ALIGNMENT.LEFT,
+    }
+    _set_paragraph_alignment(trans_para, jc_map.get(jc, WD_PARAGRAPH_ALIGNMENT.JUSTIFY))
+    orig_ind = _read_ppr_ind_twips(orig_para._element.find(qn("w:pPr")))
+    left = int(orig_ind.get("left", 0) or 0)
+    right = int(orig_ind.get("right", 0) or 0)
+    first_line = int(orig_ind.get("firstLine", 0) or 0)
+    hanging = int(orig_ind.get("hanging", 0) or 0)
+    if hanging > 0:
+        _set_paragraph_indents(trans_para, left=left, right=right, hanging=hanging)
+    else:
+        _set_paragraph_indents(trans_para, left=left, right=right, first_line=first_line)
+
+
 def _mirror_paragraph_indents_from_orig(orig_para, trans_para) -> None:
     """Copy alignment + indents from original paragraph to translation line."""
     jc = _paragraph_jc_val(orig_para) or "justify"
+    if _docx_center_is_likely_pdf2docx_artifact(orig_para, _paragraph_plain(orig_para)):
+        jc = "both"
     jc_map = {
         "center": WD_PARAGRAPH_ALIGNMENT.CENTER,
         "right": WD_PARAGRAPH_ALIGNMENT.RIGHT,
@@ -3970,14 +3596,292 @@ def _mirror_paragraph_indents_from_orig(orig_para, trans_para) -> None:
 
 
 def _sync_translation_run_font_from_orig(orig_para, trans_para) -> int:
-    """Match translation run bold/size to source paragraph."""
-    return _sync_run_styles_from_source(orig_para, trans_para)
+    """Match translation run font size/name to dominant body run in original."""
+    template = _dominant_body_run_rpr(orig_para)
+    if template is None:
+        return 0
+    synced = 0
+    for run in trans_para.runs:
+        if not (run.text or "").strip():
+            continue
+        if _merge_run_font_rpr(run, template):
+            synced += 1
+    return synced
 
 
 def _finalize_newline_translation_pair(orig_para, trans_para) -> None:
     """Ensure translation line mirrors original paragraph layout and font."""
     _mirror_paragraph_indents_from_orig(orig_para, trans_para)
     _sync_translation_run_font_from_orig(orig_para, trans_para)
+
+
+# ── Newline bilingual: pair spacing ──────────────────────────────────────────
+
+def _tighten_newline_pair_spacing(orig_para, trans_para) -> None:
+    """Visually attach translation paragraph to its source: zero gap between them,
+    full gap after the translation to separate from the next source paragraph.
+
+    This makes source+translation feel like a unit while preserving document flow.
+    """
+    try:
+        src_sp = _read_spacing_twips(orig_para)
+        src_after = int(src_sp.get("after", 120))
+        _set_paragraph_spacing(orig_para, after=0)
+        _set_paragraph_spacing(trans_para, before=0, after=max(120, src_after))
+    except Exception:
+        pass
+
+
+# ── Inline bilingual → 2-column table conversion ─────────────────────────────
+
+def _find_inline_bilingual_split(p_elem: Any, delimiter: str):
+    """Return (ppr_el, src_runs, trans_runs) if p_elem contains the bilingual delimiter.
+
+    _append_inline_bilingual appends ' {delimiter} ' to the last source run and then
+    adds the translation as a separate run.  We locate that suffix and split.
+    Returns None if no delimiter pattern is found.
+    """
+    d = (delimiter or "|").strip()
+    if not d:
+        return None
+    suffix_spaced = f" {d} "   # most common: "text | "
+    suffix_bare   = f" {d}"    # edge case: "text |" at end of run
+
+    r_elements = p_elem.findall(qn("w:r"))
+    if not r_elements:
+        return None
+
+    # Fast path: find the last run ending with the delimiter suffix.
+    for split_idx in range(len(r_elements) - 1, -1, -1):
+        run = r_elements[split_idx]
+        run_text = "".join(el.text or "" for el in run.findall(qn("w:t")))
+        if run_text.endswith(suffix_spaced) or run_text.endswith(suffix_bare):
+            trans_runs = r_elements[split_idx + 1:]
+            if not trans_runs:
+                return None
+            # Strip delimiter from a deep-copied version of that run.
+            new_run = copy.deepcopy(run)
+            t_els = new_run.findall(qn("w:t"))
+            if t_els:
+                last_t = t_els[-1]
+                txt = last_t.text or ""
+                if txt.endswith(suffix_spaced):
+                    txt = txt[: -len(suffix_spaced)]
+                elif txt.endswith(suffix_bare):
+                    txt = txt[: -len(suffix_bare)]
+                last_t.text = txt.rstrip()
+                if last_t.text:
+                    last_t.set(qn("xml:space"), "preserve")
+            ppr = p_elem.find(qn("w:pPr"))
+            src_runs = list(r_elements[:split_idx]) + [new_run]
+            return ppr, src_runs, list(trans_runs)
+
+    # Slow path: concatenate all run text and search for delimiter.
+    full_text = ""
+    positions: List[Tuple[int, int, int]] = []
+    for i, run in enumerate(r_elements):
+        run_text = "".join(el.text or "" for el in run.findall(qn("w:t")))
+        positions.append((i, len(full_text), len(full_text) + len(run_text)))
+        full_text += run_text
+
+    idx = full_text.rfind(suffix_spaced)
+    if idx < 0:
+        return None
+
+    split_run_idx = None
+    for r_i, c_start, c_end in positions:
+        if c_start <= idx < c_end:
+            split_run_idx = r_i
+            break
+    if split_run_idx is None:
+        return None
+
+    trans_runs = r_elements[split_run_idx + 1:]
+    if not trans_runs:
+        return None
+
+    new_run = copy.deepcopy(r_elements[split_run_idx])
+    t_els = new_run.findall(qn("w:t"))
+    if t_els:
+        r_start = positions[split_run_idx][1]
+        keep_len = idx - r_start
+        combined = "".join(el.text or "" for el in t_els)
+        kept = combined[:keep_len].rstrip()
+        for j, t_el in enumerate(t_els):
+            t_el.text = kept if j == 0 else ""
+            if j == 0 and kept:
+                t_el.set(qn("xml:space"), "preserve")
+
+    ppr = p_elem.find(qn("w:pPr"))
+    src_runs = list(r_elements[:split_run_idx]) + [new_run]
+    return ppr, src_runs, list(trans_runs)
+
+
+def _build_bilingual_two_col_table(
+    ppr_elem: Any,
+    src_runs: List,
+    trans_runs: List,
+    *,
+    left_w: int,
+    right_w: int,
+    italic_translation: bool = True,
+) -> Any:
+    """Build a <w:tbl> element: left cell = source runs, right cell = translation runs."""
+
+    # ── tbl ──
+    tbl = OxmlElement("w:tbl")
+
+    tbl_pr = OxmlElement("w:tblPr")
+
+    tbl_w_el = OxmlElement("w:tblW")
+    tbl_w_el.set(qn("w:w"), str(left_w + right_w))
+    tbl_w_el.set(qn("w:type"), "dxa")
+    tbl_pr.append(tbl_w_el)
+
+    tbl_borders = OxmlElement("w:tblBorders")
+    for bname in ("top", "left", "bottom", "right", "insideH", "insideV"):
+        b = OxmlElement(f"w:{bname}")
+        b.set(qn("w:val"), "none")
+        b.set(qn("w:sz"), "0")
+        b.set(qn("w:space"), "0")
+        b.set(qn("w:color"), "auto")
+        tbl_borders.append(b)
+    tbl_pr.append(tbl_borders)
+
+    tbl_cell_mar = OxmlElement("w:tblCellMar")
+    for side, val in [("top", "0"), ("left", "72"), ("bottom", "0"), ("right", "72")]:
+        m = OxmlElement(f"w:{side}")
+        m.set(qn("w:w"), val)
+        m.set(qn("w:type"), "dxa")
+        tbl_cell_mar.append(m)
+    tbl_pr.append(tbl_cell_mar)
+    tbl.append(tbl_pr)
+
+    tbl_grid = OxmlElement("w:tblGrid")
+    for w in (left_w, right_w):
+        gc = OxmlElement("w:gridCol")
+        gc.set(qn("w:w"), str(w))
+        tbl_grid.append(gc)
+    tbl.append(tbl_grid)
+
+    def _make_cell(runs: List, cell_w: int, *, italic: bool) -> Any:
+        tc = OxmlElement("w:tc")
+
+        tc_pr = OxmlElement("w:tcPr")
+        tc_w_el = OxmlElement("w:tcW")
+        tc_w_el.set(qn("w:w"), str(cell_w))
+        tc_w_el.set(qn("w:type"), "dxa")
+        tc_pr.append(tc_w_el)
+
+        tc_borders = OxmlElement("w:tcBorders")
+        for bname in ("top", "left", "bottom", "right"):
+            b = OxmlElement(f"w:{bname}")
+            b.set(qn("w:val"), "none")
+            b.set(qn("w:sz"), "0")
+            b.set(qn("w:space"), "0")
+            b.set(qn("w:color"), "auto")
+            tc_borders.append(b)
+        tc_pr.append(tc_borders)
+
+        va = OxmlElement("w:vAlign")
+        va.set(qn("w:val"), "top")
+        tc_pr.append(va)
+        tc.append(tc_pr)
+
+        p = OxmlElement("w:p")
+        if ppr_elem is not None:
+            new_ppr = copy.deepcopy(ppr_elem)
+            for tag in ("w:ind", "w:spacing"):
+                el = new_ppr.find(qn(tag))
+                if el is not None:
+                    new_ppr.remove(el)
+            jc = new_ppr.find(qn("w:jc"))
+            if jc is not None:
+                jc.set(qn("w:val"), "left")
+            p.append(new_ppr)
+
+        for r_el in runs:
+            if r_el is None:
+                continue
+            new_r = copy.deepcopy(r_el)
+            if italic:
+                rpr = new_r.find(qn("w:rPr"))
+                if rpr is None:
+                    rpr = OxmlElement("w:rPr")
+                    new_r.insert(0, rpr)
+                if rpr.find(qn("w:i")) is None:
+                    rpr.append(OxmlElement("w:i"))
+                if rpr.find(qn("w:iCs")) is None:
+                    rpr.append(OxmlElement("w:iCs"))
+            for t_el in new_r.findall(qn("w:t")):
+                t_el.set(qn("xml:space"), "preserve")
+            p.append(new_r)
+
+        tc.append(p)
+        return tc
+
+    tr = OxmlElement("w:tr")
+    tr.append(_make_cell(src_runs, left_w, italic=False))
+    tr.append(_make_cell(trans_runs, right_w, italic=italic_translation))
+    tbl.append(tr)
+    return tbl
+
+
+def _convert_inline_bilingual_to_tables(
+    doc: docx.Document,
+    delimiter: str = "|",
+    *,
+    col_ratio: float = 0.5,
+    italic_translation: bool = True,
+) -> int:
+    """Replace 'Src {delimiter} Trans' body paragraphs with borderless 2-column tables.
+
+    DISABLED by default — the inline bilingual format (source | translation in one
+    paragraph) is the intended layout.  Enable via PDF_DOCX_BILINGUAL_TABLE=1 only
+    for special rendering needs.
+
+    Returns count of converted paragraphs.
+    """
+    if not _env_bool("PDF_DOCX_BILINGUAL_TABLE", False):
+        return 0
+
+    content_w = _get_content_width_twips(doc)
+    left_w  = max(1800, int(content_w * col_ratio))
+    right_w = max(1800, content_w - left_w)
+
+    body = doc.element.body
+    candidates: List[Tuple[Any, Any, List, List]] = []
+
+    for child in list(body):
+        local = child.tag.split("}")[-1] if "}" in child.tag else child.tag
+        if local != "p":
+            continue
+        result = _find_inline_bilingual_split(child, delimiter)
+        if result is None:
+            continue
+        ppr_el, src_runs, trans_runs = result
+        if not src_runs or not trans_runs:
+            continue
+        candidates.append((child, ppr_el, src_runs, trans_runs))
+
+    converted = 0
+    for p_elem, ppr_el, src_runs, trans_runs in candidates:
+        try:
+            tbl_elem = _build_bilingual_two_col_table(
+                ppr_el, src_runs, trans_runs,
+                left_w=left_w,
+                right_w=right_w,
+                italic_translation=italic_translation,
+            )
+            p_elem.addprevious(tbl_elem)
+            parent = p_elem.getparent()
+            if parent is not None:
+                parent.remove(p_elem)
+            converted += 1
+        except Exception:
+            continue
+
+    return converted
 
 
 def _is_pre_body_line(paragraph, src_i: int, abs_start: int) -> bool:
@@ -3989,11 +3893,13 @@ def _is_pre_body_line(paragraph, src_i: int, abs_start: int) -> bool:
         return True
     if _is_affiliation_line(paragraph):
         return True
+    if _paragraph_is_centered(paragraph) and len(text) <= 160 and _paragraph_word_count(paragraph) <= 28:
+        return True
     if len(text) <= 160 and _paragraph_word_count(paragraph) <= 28:
         low = text.lower()
         if any(k in low for k in ("@", "orcid", "author", "corresponding", "email")):
             return True
-    return True
+    return False
 
 
 def _copy_layout_from_orig_to_translation(
@@ -4001,6 +3907,7 @@ def _copy_layout_from_orig_to_translation(
     trans_para,
     *,
     clear_first_line: bool = False,
+    strip_alignment: bool = False,
 ) -> None:
     """Mirror orig paragraph layout on translation line; optionally drop first-line indent only."""
     orig_ppr = orig_para._element.find(qn("w:pPr"))
@@ -4010,6 +3917,10 @@ def _copy_layout_from_orig_to_translation(
     spacing = cloned.find(qn("w:spacing"))
     if spacing is not None:
         cloned.remove(spacing)
+    if strip_alignment:
+        jc = cloned.find(qn("w:jc"))
+        if jc is not None:
+            cloned.remove(jc)
     if clear_first_line:
         ind = cloned.find(qn("w:ind"))
         if ind is not None:
@@ -4019,7 +3930,15 @@ def _copy_layout_from_orig_to_translation(
 
 
 def _iter_newline_bilingual_pairs(src_doc: docx.Document, dst_doc: docx.Document):
-    """Yield (src_index, src_para, orig_dst, trans_dst|None) for stacked bilingual docs."""
+    """Yield (src_index, src_para, orig_dst, trans_dst|None) for stacked bilingual docs.
+
+    Improved robustness:
+    - Bounded lookahead (≤10 dst paragraphs) to find the original source paragraph.
+    - If lookahead is exceeded without a match the source paragraph is skipped but
+      dst_pos is NOT advanced beyond the search window, preventing runaway drift.
+    """
+    _MAX_LOOKAHEAD = 10
+
     src_items = [
         (i, p)
         for i, p in enumerate(src_doc.paragraphs)
@@ -4034,15 +3953,29 @@ def _iter_newline_bilingual_pairs(src_doc: docx.Document, dst_doc: docx.Document
     dst_pos = 0
     for src_pos, (src_i, src_p) in enumerate(src_items):
         src_text = _paragraph_plain(src_p)
-        matched = False
-        while dst_pos < len(dst_items):
-            _, orig_dst = dst_items[dst_pos]
-            if _paragraph_texts_match(src_text, _paragraph_plain(orig_dst)):
-                matched = True
+
+        # Bounded forward scan for the source paragraph in the translated doc.
+        matched_at: Optional[int] = None
+        scan_limit = min(dst_pos + _MAX_LOOKAHEAD, len(dst_items))
+        for scan in range(dst_pos, scan_limit):
+            if _paragraph_texts_match(src_text, _paragraph_plain(dst_items[scan][1])):
+                matched_at = scan
                 break
-            dst_pos += 1
-        if not matched:
+
+        # Unbounded fallback only if the remaining dst window is small.
+        if matched_at is None and scan_limit < len(dst_items):
+            remaining = len(dst_items) - scan_limit
+            if remaining <= _MAX_LOOKAHEAD:
+                for scan in range(scan_limit, len(dst_items)):
+                    if _paragraph_texts_match(src_text, _paragraph_plain(dst_items[scan][1])):
+                        matched_at = scan
+                        break
+
+        if matched_at is None:
             continue
+
+        dst_pos = matched_at
+        _, orig_dst = dst_items[dst_pos]
 
         next_src_text = None
         if src_pos + 1 < len(src_items):
@@ -4066,18 +3999,28 @@ def _iter_newline_bilingual_pairs(src_doc: docx.Document, dst_doc: docx.Document
         yield src_i, src_p, orig_dst, trans_dst
 
 
-def _sync_bilingual_newline_layout(src_doc: docx.Document, dst_doc: docx.Document) -> int:
-    """Copy body layout to original+translation paragraph pairs after newline bilingual."""
+def _sync_bilingual_newline_layout(
+    src_doc: docx.Document,
+    dst_doc: docx.Document,
+    *,
+    pdf_path: Optional[str] = None,
+) -> int:
+    """Copy paragraph layout from pre-translation DOCX onto stacked pairs (same as inline).
+
+    Newline is built via inline append + split; recovery mirrors inline:
+    copy source pPr → downgrade false body center → _fix_spurious_center_alignment_in_doc.
+    """
+    _ = pdf_path  # kept for API compatibility
     synced = 0
     for _src_i, src_p, orig_dst, trans_dst in _iter_newline_bilingual_pairs(src_doc, dst_doc):
-        _sync_paragraph_style_only(src_p, orig_dst)
-        _preserve_paragraph_layout(src_p, orig_dst)
-        if trans_dst is None:
+        if _is_in_table_cell(orig_dst):
             synced += 1
             continue
-        _sync_paragraph_style_only(src_p, trans_dst)
-        _copy_layout_from_orig_to_translation(orig_dst, trans_dst, clear_first_line=False)
-        _sync_translation_run_font_from_orig(orig_dst, trans_dst)
+        _sync_paragraph_layout_like_inline(src_p, orig_dst, include_spacing=True)
+        if trans_dst is not None:
+            _sync_paragraph_layout_like_inline(src_p, trans_dst, include_spacing=False)
+            _tighten_newline_pair_spacing(orig_dst, trans_dst)
+            _sync_translation_run_font_from_orig(orig_dst, trans_dst)
         synced += 1
     return synced
 
@@ -4087,133 +4030,36 @@ def _normalize_newline_bilingual_layout_in_doc(
     src_doc: docx.Document,
     *,
     pdf_path: Optional[str] = None,
+    bilingual_delimiter: str = "|",
 ) -> Dict[str, int]:
-    """Apply regional left/right/justify to stacked bilingual pairs without touching text."""
+    """Newline layout pass — reuses inline recovery (copy source layout + shared center fix)."""
     stats: Dict[str, int] = {
         "alignment_normalized": 0,
         "indents_normalized": 0,
         "title_layout_preserved": 0,
+        "center_alignment_fixed": 0,
+        "paragraphs_synced": 0,
     }
     if not _env_bool("PDF_DOCX_NORMALIZE_ALIGN", True):
         return stats
 
-    src_paras = list(src_doc.paragraphs)
-    if not src_paras:
-        return stats
-
-    _title_end, abs_start, abstract_end, body_start, _sec2 = _detect_layout_regions(src_paras)
-    body_profile, abstract_profile = _resolve_layout_profiles(
-        src_doc,
-        src_paras,
-        pdf_path=pdf_path,
+    stats["paragraphs_synced"] = _sync_bilingual_newline_layout(
+        src_doc, dst_doc, pdf_path=pdf_path
     )
-
-    for src_i, src_p, orig_dst, trans_dst in _iter_newline_bilingual_pairs(src_doc, dst_doc):
-        if _is_in_table_cell(orig_dst):
+    stats["alignment_normalized"] = int(stats["paragraphs_synced"])
+    stats["indents_normalized"] = int(stats["paragraphs_synced"])
+    stats["center_alignment_fixed"] = int(
+        _fix_spurious_center_alignment_in_doc(
+            dst_doc,
+            src_doc,
+            pdf_path=pdf_path,
+            bilingual_delimiter=bilingual_delimiter,
+        )
+    )
+    for _, _, orig_dst, trans_dst in _iter_newline_bilingual_pairs(src_doc, dst_doc):
+        if trans_dst is None or _is_in_table_cell(orig_dst):
             continue
-        text = _paragraph_plain(orig_dst)
-        if not text.strip():
-            continue
-        if _is_running_header_line(orig_dst):
-            continue
-
-        # Title / author / affiliation: keep source layout (center, hanging indent, etc.)
-        if _is_pre_body_line(orig_dst, src_i, abs_start) or _is_pre_body_line(src_p, src_i, abs_start):
-            _preserve_paragraph_layout(src_p, orig_dst)
-            if trans_dst is not None:
-                _copy_layout_from_orig_to_translation(
-                    orig_dst,
-                    trans_dst,
-                    clear_first_line=False,
-                )
-                _sync_translation_run_font_from_orig(orig_dst, trans_dst)
-            stats["title_layout_preserved"] += 1
-            continue
-
-        if _is_section_heading_line(orig_dst) and _paragraph_word_count(orig_dst) <= 10:
-            _set_paragraph_alignment(orig_dst, WD_PARAGRAPH_ALIGNMENT.LEFT)
-            _set_paragraph_indents(
-                orig_dst,
-                left=int(body_profile["left"]),
-                right=0,
-                first_line=0,
-            )
-            stats["indents_normalized"] += 1
-            if trans_dst is not None:
-                _set_paragraph_alignment(trans_dst, WD_PARAGRAPH_ALIGNMENT.LEFT)
-                _set_paragraph_indents(
-                    trans_dst,
-                    left=int(body_profile["left"]),
-                    right=0,
-                    first_line=0,
-                )
-                _sync_translation_run_font_from_orig(orig_dst, trans_dst)
-                stats["indents_normalized"] += 1
-            continue
-
-        if abs_start <= src_i < abstract_end:
-            target = abstract_profile
-            is_abstract = True
-        elif src_i >= body_start:
-            target = body_profile
-            is_abstract = False
-        else:
-            _preserve_paragraph_layout(src_p, orig_dst)
-            _set_paragraph_alignment(orig_dst, WD_PARAGRAPH_ALIGNMENT.JUSTIFY)
-            if trans_dst is not None:
-                _set_paragraph_alignment(trans_dst, WD_PARAGRAPH_ALIGNMENT.JUSTIFY)
-                _mirror_paragraph_indents_from_orig(orig_dst, trans_dst)
-                _sync_translation_run_font_from_orig(orig_dst, trans_dst)
-            stats["title_layout_preserved"] += 1
-            continue
-
-        _set_paragraph_alignment(orig_dst, WD_PARAGRAPH_ALIGNMENT.JUSTIFY)
-        stats["alignment_normalized"] += 1
-        first_after_heading = False
-        if is_abstract:
-            _set_paragraph_indents(
-                orig_dst,
-                left=int(target["left"]),
-                right=int(target["right"]),
-                first_line=0,
-            )
-            _clear_first_line_indent(orig_dst)
-        elif _paragraph_has_hanging_indent(src_p):
-            _preserve_paragraph_layout(src_p, orig_dst)
-            _set_paragraph_alignment(orig_dst, WD_PARAGRAPH_ALIGNMENT.JUSTIFY)
-        else:
-            first_after_heading = _is_first_paragraph_after_heading(
-                src_paras,
-                src_i,
-                body_start,
-            )
-            _apply_body_indent_from_source(
-                orig_dst,
-                src_p,
-                body_profile,
-                is_first_after_heading=first_after_heading,
-            )
-        stats["indents_normalized"] += 1
-
-        if trans_dst is not None:
-            if is_abstract:
-                _set_paragraph_alignment(trans_dst, WD_PARAGRAPH_ALIGNMENT.JUSTIFY)
-                _set_paragraph_indents(
-                    trans_dst,
-                    left=int(target["left"]),
-                    right=int(target["right"]),
-                    first_line=0,
-                )
-                _clear_first_line_indent(trans_dst)
-            elif _paragraph_has_hanging_indent(src_p):
-                _preserve_paragraph_layout(src_p, trans_dst)
-                _set_paragraph_alignment(trans_dst, WD_PARAGRAPH_ALIGNMENT.JUSTIFY)
-            else:
-                _mirror_paragraph_indents_from_orig(orig_dst, trans_dst)
-            _sync_translation_run_font_from_orig(orig_dst, trans_dst)
-            stats["alignment_normalized"] += 1
-            stats["indents_normalized"] += 1
-
+        _sync_translation_layout_from_orig(orig_dst, trans_dst)
     return stats
 
 
@@ -4224,12 +4070,9 @@ def recover_docx_layout(
     pdf_path: Optional[str] = None,
     analysis: Optional[Dict[str, Any]] = None,
     bilingual_mode: Optional[str] = None,
-    layout_mode: Optional[str] = None,
+    bilingual_delimiter: Optional[str] = None,
 ) -> Dict[str, int]:
     """Restore paragraph properties from pre-translation DOCX (safe, index-based)."""
-    if layout_mode is None:
-        layout_mode = resolve_pdf_layout_mode(analysis)
-    regional = uses_regional_layout(layout_mode)
     bi_mode = normalize_bilingual_mode(bilingual_mode)
 
     stats: Dict[str, int] = {
@@ -4247,28 +4090,31 @@ def recover_docx_layout(
 
     src = docx.Document(source_docx)
     dst = docx.Document(translated_docx)
+    use_regional = _should_apply_regional_layout(doc=dst, src_doc=src, analysis=analysis)
 
     if bi_mode == "newline":
         stats["mismatched_paragraphs"] = abs(len(src.paragraphs) - len(dst.paragraphs))
-        stats["paragraphs_synced"] = _sync_bilingual_newline_layout(src, dst)
+        post_stats = _normalize_newline_bilingual_layout_in_doc(
+            dst,
+            src,
+            pdf_path=pdf_path,
+            bilingual_delimiter=bilingual_delimiter or "|",
+        )
+        stats["paragraphs_synced"] = int(post_stats.get("paragraphs_synced", 0))
+        stats["post_alignment_normalized"] = int(post_stats.get("alignment_normalized", 0))
+        stats["post_indents_normalized"] = int(post_stats.get("indents_normalized", 0))
+        stats["center_alignment_fixed"] = int(post_stats.get("center_alignment_fixed", 0))
         stats["table_cells_synced"] = _sync_table_layout_from_source(src, dst)
         stats["header_footer_synced"] = _sync_header_footer_layout(src, dst)
         table_stats = _recover_tables_and_images(dst)
         stats["table_rows_relaxed"] = int(table_stats.get("table_rows_relaxed", 0))
         stats["images_resized"] = int(table_stats.get("images_resized", 0))
         stats["inline_artifacts_stripped"] = _strip_inline_pdf_artifacts(dst)
-        post_stats = _normalize_newline_bilingual_layout_in_doc(
-            dst,
-            src,
-            pdf_path=pdf_path,
-        )
-        stats["post_alignment_normalized"] = int(post_stats.get("alignment_normalized", 0))
-        stats["post_indents_normalized"] = int(post_stats.get("indents_normalized", 0))
-        stats["title_layout_preserved"] = int(post_stats.get("title_layout_preserved", 0))
         if any(int(stats.get(k, 0) or 0) for k in (
             "paragraphs_synced", "table_cells_synced", "header_footer_synced",
             "table_rows_relaxed", "images_resized", "inline_artifacts_stripped",
-            "post_alignment_normalized", "post_indents_normalized", "title_layout_preserved",
+            "post_alignment_normalized", "post_indents_normalized",
+            "center_alignment_fixed",
         )):
             stats["changed"] = 1
             dst.save(translated_docx)
@@ -4277,25 +4123,18 @@ def recover_docx_layout(
     pair_count = min(len(src.paragraphs), len(dst.paragraphs))
     stats["mismatched_paragraphs"] = abs(len(src.paragraphs) - len(dst.paragraphs))
     sync_fn = (
-        _sync_paragraph_style_only if regional else _sync_paragraph_properties_only
+        _sync_paragraph_style_only
+        if use_regional
+        else _sync_paragraph_style_only
     )
     for i in range(pair_count):
         sync_fn(src.paragraphs[i], dst.paragraphs[i])
+        if not use_regional:
+            _sync_paragraph_layout_like_inline(
+                src.paragraphs[i], dst.paragraphs[i], include_spacing=True
+            )
         stats["paragraphs_synced"] += 1
-        stats["run_styles_synced"] = stats.get("run_styles_synced", 0) + _sync_run_styles_from_source(
-            src.paragraphs[i],
-            dst.paragraphs[i],
-        )
-        stats["markers_preserved"] = stats.get("markers_preserved", 0) + _preserve_leading_marker_from_source(
-            src.paragraphs[i],
-            dst.paragraphs[i],
-        )
 
-    stats["lines_merged"] = merge_pdf_continuation_paragraphs(dst)
-    stats["symbols_repaired"] = ensure_symbol_font_runs_in_doc(dst)
-    stats["latin_font_repaired"] = repair_latin_runs_in_symbol_font(dst)
-    for para in dst.paragraphs:
-        stats["markers_deduped"] = stats.get("markers_deduped", 0) + _dedupe_leading_markers_in_paragraph(para)
     stats["table_cells_synced"] = _sync_table_layout_from_source(src, dst)
     stats["header_footer_synced"] = _sync_header_footer_layout(src, dst)
 
@@ -4303,37 +4142,38 @@ def recover_docx_layout(
     stats["table_rows_relaxed"] = int(table_stats.get("table_rows_relaxed", 0))
     stats["images_resized"] = int(table_stats.get("images_resized", 0))
 
+    if bi_mode in ("inline", "newline", "none"):
+        center_fixed = _fix_spurious_center_alignment_in_doc(
+            dst,
+            src,
+            pdf_path=pdf_path,
+            bilingual_delimiter=bilingual_delimiter or "|",
+        )
+        stats["center_alignment_fixed"] = int(center_fixed)
+
     if bi_mode == "none":
-        if regional and not should_preserve_pdf_lines(layout_mode):
-            post_stats = normalize_converted_docx_layout_in_doc(
+        post_stats = normalize_converted_docx_layout_in_doc(
+            dst,
+            pdf_path=pdf_path,
+            src_doc=src,
+            analysis=analysis,
+        )
+        stats["post_alignment_normalized"] = int(post_stats.get("alignment_normalized", 0))
+        stats["post_indents_normalized"] = int(post_stats.get("indents_normalized", 0))
+
+        if pdf_path and os.path.isfile(pdf_path) and _env_bool("PDF_DOCX_PDF_GEOMETRY_PROFILE", True):
+            body_profile = _get_fallback_body_profile(dst)
+            pdf_profiles = _derive_layout_profiles_from_pdf(pdf_path, dst)
+            if pdf_profiles:
+                body_profile = pdf_profiles[0]
+            stats["pdf_indent_fixed"] = _fix_indents_from_pdf_geometry(
                 dst,
-                pdf_path=pdf_path,
-                src_doc=src,
-                layout_mode=layout_mode,
+                src,
+                pdf_path,
+                body_profile,
             )
-            stats["post_alignment_normalized"] = int(post_stats.get("alignment_normalized", 0))
-            stats["post_indents_normalized"] = int(post_stats.get("indents_normalized", 0))
 
-            if pdf_path and os.path.isfile(pdf_path) and _env_bool("PDF_DOCX_PDF_GEOMETRY_PROFILE", True):
-                body_profile = _get_fallback_body_profile(dst)
-                pdf_profiles = _derive_layout_profiles_from_pdf(pdf_path, dst)
-                if pdf_profiles:
-                    body_profile = pdf_profiles[0]
-                stats["pdf_indent_fixed"] = _fix_indents_from_pdf_geometry(
-                    dst,
-                    src,
-                    pdf_path,
-                    body_profile,
-                )
-        elif pdf_path and os.path.isfile(pdf_path):
-            stats["inline_artifacts_stripped"] = _strip_inline_pdf_artifacts(dst)
-            stats["fonts_unified"] = unify_pdf_docx_fonts(dst)
-        stats["sizes_normalized"] = _normalize_body_run_sizes(dst)
-
-    stats["inline_artifacts_stripped"] = stats.get("inline_artifacts_stripped", 0) or _strip_inline_pdf_artifacts(dst)
-    if _env_bool("PDF_DOCX_UNIFY_FONTS", True) and not stats.get("fonts_unified"):
-        stats["fonts_unified"] = unify_pdf_docx_fonts(dst)
-        stats["sizes_normalized"] = _normalize_body_run_sizes(dst)
+    stats["inline_artifacts_stripped"] = _strip_inline_pdf_artifacts(dst)
 
     if (
         stats["paragraphs_synced"]
@@ -4344,14 +4184,8 @@ def recover_docx_layout(
         or stats.get("post_alignment_normalized")
         or stats.get("post_indents_normalized")
         or stats.get("pdf_indent_fixed")
-        or stats.get("pdf_formats_applied")
-        or stats.get("fonts_unified")
+        or stats.get("center_alignment_fixed")
         or stats.get("inline_artifacts_stripped")
-        or stats.get("pdf_bold_synced")
-        or stats.get("run_styles_synced")
-        or stats.get("markers_preserved")
-        or stats.get("lines_merged")
-        or stats.get("symbols_repaired")
     ):
         stats["changed"] = 1
         dst.save(translated_docx)

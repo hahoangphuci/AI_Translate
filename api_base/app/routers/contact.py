@@ -11,7 +11,7 @@ from app.services.email_service import notify_admin_new_contact, notify_user_con
 contact_bp = Blueprint('contact', __name__)
 
 _EMAIL_RE = re.compile(r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
-_VALID_SUBJECTS = {'general', 'technical', 'billing', 'partnership', 'other'}
+_VALID_SUBJECTS = {'general', 'technical', 'billing', 'partnership', 'enterprise', 'other'}
 
 
 def _get_ip():

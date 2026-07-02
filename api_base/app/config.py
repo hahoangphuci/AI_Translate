@@ -1,5 +1,6 @@
 import os
 from dotenv import load_dotenv
+from .db_bootstrap import engine_options_for_uri, resolve_database_uri
 
 # Load .env từ thư mục api_base (config.py nằm trong app/)
 # IMPORTANT: In Docker, environment variables (e.g. DATABASE_URL) should win.
@@ -8,24 +9,17 @@ _override = (os.getenv('DOTENV_OVERRIDE') or '').strip().lower() in ('1', 'true'
 _api_base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 load_dotenv(os.path.join(_api_base_dir, '.env'), override=_override)
 
+_RESOLVED_DB_URI, _SQLITE_FALLBACK_USED = resolve_database_uri()
+
 class Config:
     SECRET_KEY = os.getenv('SECRET_KEY', 'dev-secret-key')
     JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', 'jwt-secret-key')
     
-    # Database
-    SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL', 'mysql+pymysql://root:@localhost:3306/ai_translation')
+    # Database (MySQL by default; auto-fallback to SQLite if XAMPP/MySQL is down)
+    SQLALCHEMY_DATABASE_URI = _RESOLVED_DB_URI
+    DB_SQLITE_FALLBACK_USED = _SQLITE_FALLBACK_USED
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    _DB_CONNECT_TIMEOUT_SECONDS = int(os.getenv('DB_CONNECT_TIMEOUT_SECONDS', '8') or 8)
-    SQLALCHEMY_ENGINE_OPTIONS = {'pool_pre_ping': True}
-    if SQLALCHEMY_DATABASE_URI.startswith('mysql+pymysql://'):
-        SQLALCHEMY_ENGINE_OPTIONS = {
-            'pool_pre_ping': True,
-            'connect_args': {
-                'connect_timeout': _DB_CONNECT_TIMEOUT_SECONDS,
-                'read_timeout': _DB_CONNECT_TIMEOUT_SECONDS,
-                'write_timeout': _DB_CONNECT_TIMEOUT_SECONDS,
-            },
-        }
+    SQLALCHEMY_ENGINE_OPTIONS = engine_options_for_uri(_RESOLVED_DB_URI)
     
     # Google OAuth
     GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID')
