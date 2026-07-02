@@ -42,6 +42,34 @@ class User(db.Model):
     delete_cancelled_at    = db.Column(db.DateTime,    nullable=True)
     deleted_at             = db.Column(db.DateTime,    nullable=True)
 
+    def __init__(
+        self,
+        *,
+        email: str,
+        name: str | None = None,
+        username: str | None = None,
+        google_id: str | None = None,
+        avatar_url: str | None = None,
+        password_hash: str | None = None,
+        email_verified: bool = False,
+        plan: str = 'free',
+        role: str = 'user',
+        token_balance: int | None = None,
+        account_status: str = 'active',
+    ) -> None:
+        self.email = email
+        self.name = name
+        self.username = username
+        self.google_id = google_id
+        self.avatar_url = avatar_url
+        self.password_hash = password_hash
+        self.email_verified = email_verified
+        self.plan = plan
+        self.role = role
+        self.account_status = account_status
+        if token_balance is not None:
+            self.token_balance = token_balance
+
     preference    = db.relationship('UserPreference', back_populates='user', uselist=False, cascade='all, delete-orphan')
     login_logs    = db.relationship('UserLoginLog',   back_populates='user', cascade='all, delete-orphan')
 

@@ -107,13 +107,13 @@ with app.app_context():
 
     # Tạo tài khoản admin mặc định nếu chưa có
     try:
-        from app.models import User as _User
+        from app.models import User
         from werkzeug.security import generate_password_hash as _gph
         _ADMIN_EMAIL = os.getenv('ADMIN_ACCOUNT_EMAIL', 'admin@gmail.com')
         _ADMIN_PASS  = os.getenv('ADMIN_ACCOUNT_PASSWORD', 'admin123')
-        _admin = _User.query.filter_by(email=_ADMIN_EMAIL).first()
+        _admin = User.query.filter_by(email=_ADMIN_EMAIL).first()
         if not _admin:
-            _admin = _User(
+            _admin = User(
                 email=_ADMIN_EMAIL,
                 name='Admin',
                 password_hash=_gph(_ADMIN_PASS),
