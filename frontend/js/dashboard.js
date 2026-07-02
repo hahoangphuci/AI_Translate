@@ -2299,6 +2299,7 @@ class DashboardController {
     if (bankNameText) bankNameText.textContent = bank.account_name || "";
 
     if (qrImage) {
+      delete qrImage.dataset.fallbackTried;
       const bankCode = bank.code || "";
       const accountNumber = bank.account_number || "";
       const amount = Number(payload.amount_vnd || 0);
@@ -2324,6 +2325,32 @@ class DashboardController {
       }
 
       if (qrUrl) {
+        qrImage.onerror = () => {
+          if (
+            bankCode &&
+            accountNumber &&
+            amount > 0 &&
+            transferContent &&
+            !qrImage.dataset.fallbackTried
+          ) {
+            qrImage.dataset.fallbackTried = "1";
+            const params = new URLSearchParams({
+              acc: String(accountNumber),
+              bank: String(bankCode),
+              amount: String(Math.round(amount)),
+              des: String(transferContent),
+              template: "compact",
+            });
+            qrImage.src = `https://qr.sepay.vn/img?${params.toString()}`;
+            return;
+          }
+          qrImage.style.display = "none";
+          this.setPaymentStatusText(
+            "Không tải được ảnh QR. Kiểm tra cấu hình PAYMENT_BANK_* trên server.",
+            "error",
+          );
+        };
+        qrImage.referrerPolicy = "no-referrer";
         qrImage.src = qrUrl;
         qrImage.style.display = "block";
       } else {

@@ -29,6 +29,12 @@
       "price_vnd": 90000
     }
   },
+  "payment": {
+    "bank_code": "MB",
+    "bank_account": "0799521235",
+    "bank_account_name": "HA HOANG PHUC",
+    "qr_template_url": "https://qr.sepay.vn/img?acc={account_number}&bank={bank_code}&amount={amount}&des={content}&template=compact"
+  },
   "prompts": {
     "ai_terms": "Đóng vai chuyên gia pháp lý về công nghệ và AI. Viết trang 'Điều khoản sử dụng tính năng AI' cho ứng dụng AI Translator (dịch văn bản, tài liệu, OCR). Bao gồm: bản chất AI, trách nhiệm người dùng, quyền sở hữu trí tuệ, sử dụng dữ liệu (KHÔNG huấn luyện lại mô hình), miễn trừ trách nhiệm. Giọng văn chuyên nghiệp, minh bạch.",
     "privacy_payment": "Đóng vai chuyên gia pháp lý thương mại điện tử. Viết Chính sách bảo mật và Chính sách thanh toán cho AI Translator. Privacy: loại dữ liệu, mục đích, không bán dữ liệu, quyền người dùng, cookies. Payment: SePay/chuyển khoản, bảo mật giao dịch, hoàn tiền 7 ngày nếu chưa dùng token, khiếu nại."

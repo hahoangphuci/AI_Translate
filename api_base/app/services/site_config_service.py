@@ -67,6 +67,12 @@ _DEFAULT_CONFIG = {
         "pro": {"label": "Pro", "token_cap": 120000, "price_vnd": 99000},
         "promax": {"label": "ProMax", "token_cap": 300000, "price_vnd": 199000},
     },
+    "payment": {
+        "bank_code": "MB",
+        "bank_account": "",
+        "bank_account_name": "",
+        "qr_template_url": "https://qr.sepay.vn/img?acc={account_number}&bank={bank_code}&amount={amount}&des={content}&template=compact",
+    },
     "prompts": {
         "ai_terms": "",
         "privacy_payment": "",
@@ -135,6 +141,21 @@ def load_packages_config() -> dict:
             return json.load(f)
     except (json.JSONDecodeError, OSError):
         return {}
+
+
+def load_payment_config() -> dict:
+    """Bank/QR settings for SePay — env vars win; site_config.json is fallback for Azure deploy."""
+    cfg = load_site_config().get("payment") or {}
+    default_qr = (
+        "https://qr.sepay.vn/img?acc={account_number}&bank={bank_code}"
+        "&amount={amount}&des={content}&template=compact"
+    )
+    return {
+        "bank_code": (cfg.get("bank_code") or "MB").strip().upper(),
+        "bank_account": (cfg.get("bank_account") or "").strip(),
+        "bank_account_name": (cfg.get("bank_account_name") or "").strip(),
+        "qr_template_url": (cfg.get("qr_template_url") or default_qr).strip(),
+    }
 
 
 def sync_packages_json(plans: dict) -> None:

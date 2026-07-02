@@ -87,6 +87,32 @@ class PaymentService:
         if not self.bank_code:
             self.bank_code = "MB"
 
+        self._apply_site_payment_fallback()
+
+    def _apply_site_payment_fallback(self):
+        try:
+            from app.services.site_config_service import load_payment_config
+
+            site = load_payment_config()
+        except Exception:
+            return
+
+        if not self.bank_account:
+            self.bank_account = site.get("bank_account") or ""
+        if not self.bank_account_name:
+            self.bank_account_name = site.get("bank_account_name") or ""
+        if self.bank_code == "MB" and site.get("bank_code"):
+            env_bank = self._pick_env(
+                "PAYMENT_BANK_CODE",
+                "SEPAY_BANK_CODE",
+                "BANK_CODE",
+                "RECEIVE_BANK_CODE",
+            )
+            if not env_bank:
+                self.bank_code = str(site.get("bank_code") or "MB").upper()
+        if not self.sepay_qr_template_url:
+            self.sepay_qr_template_url = site.get("qr_template_url") or ""
+
     @staticmethod
     def _pick_env(*keys):
         for key in keys:
